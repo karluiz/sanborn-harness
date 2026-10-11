@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Sanborn: proposed Rust harness with Laya",
+    "locale": "en",
+    "output": "sanborn.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {"id":"client","type":"external","label":"sb CLI / client","sublabel":"Unified init; prompt and workspace","pos":[40,90],"size":[200,80]},
+    {"id":"runtime","type":"backend","label":"Rust runtime","sublabel":"State, budgets, cancellation","pos":[390,90],"size":[220,80]},
+    {"id":"reasoning","type":"backend","label":"Reasoning adapter","sublabel":"No plan, ambiguity or replan","pos":[390,310],"size":[220,80]},
+    {"id":"inference","type":"external","label":"Foundry endpoints","sublabel":"Approved hosts and data only","pos":[40,310],"size":[220,80],"tag":"Protocol to verify"},
+    {"id":"plan","type":"backend","label":"Bounded plan","sublabel":"Validate steps and dependencies","pos":[750,310],"size":[240,80]},
+    {"id":"policy","type":"security","label":"Permission gate","sublabel":"Check each ready tool step","pos":[750,90],"size":[240,80]},
+    {"id":"scheduler","type":"backend","label":"Tool scheduler","sublabel":"Parallel reads; ordered mutations","pos":[750,530],"size":[240,80]},
+    {"id":"state","type":"database","label":"Results and run state","sublabel":"Errors, evidence, invalidation","pos":[390,530],"size":[240,80]},
+    {"id":"laya","type":"backend","label":"Core Laya layer","sublabel":"Typed decision or explicit Absent","pos":[40,530],"size":[240,80],"tag":"Local evidence first"}
+  ],
+  "connections": [
+    {"id":"task","from":"client","to":"runtime","label":"task","variant":"emphasis"},
+    {"id":"ready","from":"runtime","to":"policy","label":"ready plan step","variant":"emphasis"},
+    {"id":"need-reasoning","from":"runtime","to":"reasoning","label":"needs reasoning"},
+    {"id":"call-model","from":"reasoning","to":"inference","label":"approved request","variant":"dashed"},
+    {"id":"make-plan","from":"reasoning","to":"plan","label":"model-produced plan"},
+    {"id":"validate-ready","from":"plan","to":"policy","label":"validated steps"},
+    {"id":"execute","from":"policy","to":"scheduler","label":"only if permitted","variant":"security","fromSide":"right","toSide":"right","via":[[1100,130],[1100,570]]},
+    {"id":"results","from":"scheduler","to":"state","label":"results / errors","variant":"emphasis"},
+    {"id":"state-runtime","from":"state","to":"runtime","label":"deterministic transition","fromSide":"bottom","toSide":"top","via":[[510,650],[1200,650],[1200,50],[500,50]],"labelSegment":1},
+    {"id":"decision","from":"state","to":"laya","label":"evaluate transition"},
+    {"id":"fallback","from":"laya","to":"reasoning","label":"Absent / replan","fromSide":"top","toSide":"left","via":[[160,445],[320,445],[320,350]]},
+    {"id":"continue","from":"laya","to":"runtime","label":"continue only if plan permits","variant":"dashed","fromSide":"left","toSide":"top","via":[[10,570],[10,20],[500,20]]}
+  ],
+  "cards": [
+    {"dot":"cyan","title":"Fast path: fewer reasoning turns","items":["Execute explicit ready steps locally; do not invent new actions.","Bound read concurrency. Check dependencies before batching.","Cache only valid results; invalidate affected reads after edits and conservatively after shell execution."]},
+    {"dot":"rose","title":"Control and trust","items":["Laya never grants permissions, invents edits, or certifies success.","Continuation advice is usable only with satisfied plan preconditions.","Invalid plans, tool failures and uncertain decisions return to reasoning.","Acceptance evidence and a final response are required; an exhausted plan is not proof of success."]},
+    {"dot":"emerald","title":"Core decision layer; backend embedding later","items":["Laya is required in the planned runner; its first evaluator uses exact local evidence guards.","The pure Rust decision contract is separate from any future learned backend or HTTP transport.","Missing or insufficient evidence produces explicit Absent and a recorded reason; it never bypasses policy.","Evaluate future learned decisions in shadow mode; calibrate thresholds on labeled synthetic fixtures."]},
+    {"dot":"cyan","title":"First runnable slice; broader architecture proposed","items":["sb init prepares inference configuration and required Laya readiness; credentials remain outside configuration.","sb -p runs Azure reasoning, bounded plans, required Laya decisions and guarded file tools.","TTY color and ASCII feedback are dependency-free; plain and JSON output preserve automation.","Caching, learned decisions, streaming, independent acceptance certification and shell isolation remain proposed.","Metadata traces omit tool inputs and file contents. A synthetic four-tool plan uses two reasoning calls; no comparative speed benchmark exists."]}
+  ]
+}

@@ -1,0 +1,14 @@
+[package]
+name = "sanborn-models"
+description = "Model providers for Sanborn"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+sanborn-core.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+tokio.workspace = true

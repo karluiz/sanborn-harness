@@ -1,0 +1,22 @@
+[package]
+name = "sanborn-cli"
+description = "sb: the Sanborn Rust/Laya command-line harness"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "sb"
+path = "src/main.rs"
+
+[dependencies]
+sanborn-core.workspace = true
+sanborn-models.workspace = true
+sanborn-tools.workspace = true
+sanborn-laya.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+tempfile.workspace = true
+tokio.workspace = true

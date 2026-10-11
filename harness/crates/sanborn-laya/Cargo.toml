@@ -1,0 +1,9 @@
+[package]
+name = "sanborn-laya"
+description = "Typed decisions and evidence guards for Sanborn plan execution"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
