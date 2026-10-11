@@ -133,8 +133,19 @@ sb -p "List the visible files and summarize the README" \
             <button class="node" data-node="servers" style="--x:76;--y:81.67" aria-pressed="false" type="button"><span>APPROVED BOUNDARY</span><strong>Inference servers</strong><small>Azure chat adapter.</small></button>
           </div>
           <div class="inspector" aria-live="polite" aria-atomic="true"><span class="inspector-symbol" aria-hidden="true">↗</span><div><h3 id="node-title">Rust runtime</h3><p id="node-copy">Owns state, budgets and cancellation. Continues validated plan steps locally; asks for reasoning when the evidence or plan no longer holds.</p><p class="constraint" id="node-limit">Boundary: completing a plan is not proof of task success.</p></div></div>
-          <p class="map-note">The map above is a guided adaptation of the proposal, not current runtime wiring.<br><a href="./architecture.html">Open the complete Archify diagram ↗</a> · <a href="./architecture.json" download>Download the diagram specification</a></p>
-          <details class="archify-preview"><summary>Explore the full Archify proposal here</summary><iframe src="./architecture.html" title="Sanborn proposed architecture — interactive Archify diagram" loading="lazy"></iframe></details>
+          <p class="map-note">The map above is a guided adaptation of the proposal, not current runtime wiring.</p>
+          <details class="archify-preview">
+            <summary><span class="architecture-summary"><strong>The complete anatomy</strong><span>Follow the connections behind Rust + Laya.</span></span><span class="architecture-toggle" aria-hidden="true">+</span></summary>
+            <div class="architecture-sheet">
+              <div class="architecture-sheet-heading"><h3>One objective.<br><em>A bounded path through Sanborn.</em></h3><p>Proposed architecture<br>Rust retains execution authority.</p></div>
+              <p class="architecture-scroll-hint">Scroll across to follow the whole system <span aria-hidden="true">→</span></p>
+              <div class="architecture-viewport" tabindex="0" role="region" aria-label="Complete architecture preview; scroll horizontally on small screens">
+                <iframe src="./architecture.html?embed=1&amp;theme=dark" title="Sanborn proposed architecture — complete connection map" loading="lazy"></iframe>
+              </div>
+              <div class="architecture-actions"><p>Inspect nodes, trace paths and export in the full explorer.</p><a href="./architecture.html?theme=dark">Open architecture explorer <span aria-hidden="true">↗</span></a></div>
+              <div class="architecture-source"><span>Proposal, not a live runtime trace · rendered with Archify</span><a href="./architecture.json" download>Download specification</a></div>
+            </div>
+          </details>
           <noscript><p>JavaScript is disabled. Read the complete component reference below.</p></noscript>
           <details><summary>Complete component reference</summary><dl class="reference">
             <dt>CLI / client</dt><dd>Supplies task, workspace and acceptance criteria. Does not grant implicit tool access.</dd>

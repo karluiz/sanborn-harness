@@ -14,10 +14,33 @@ figure{margin:0;background:var(--ink);color:#d9e4cc}figcaption{font-size:9px;let
 .map-note a{display:inline-block;margin-top:10px;font-weight:500}
 .node.dim{opacity:1;background:#19281d;border-color:#3b5036}
 .node.dim strong,.node.dim small,.node.dim span{color:#a8b99a}
-.archify-preview{margin-top:18px}
-.archify-preview iframe{width:100%;height:720px;border:1px solid var(--line);background:var(--paper)}
+.archify-preview{margin:32px 0 20px;padding:0;border-bottom:1px solid var(--line)}
+.archify-preview>summary{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:26px 0;list-style:none}
+.archify-preview>summary::-webkit-details-marker{display:none}
+.architecture-summary{display:flex;flex-direction:column;gap:8px}
+.architecture-summary strong{font-family:Manrope,sans-serif;font-size:23px;font-weight:500;letter-spacing:-.025em}
+.architecture-summary>span{font-size:13px;color:var(--muted);font-weight:400}
+.architecture-toggle{display:grid;place-items:center;width:44px;height:44px;flex-shrink:0;border:1px solid var(--line);font-size:25px;font-weight:400;color:var(--moss)}
+.archify-preview[open] .architecture-toggle{transform:rotate(45deg)}
+.archify-preview>summary:hover .architecture-toggle{background:var(--fern);border-color:var(--moss)}
+.architecture-sheet{background:var(--ink);color:var(--paper);margin-bottom:24px}
+.architecture-sheet-heading{padding:32px 32px 16px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+.architecture-sheet-heading h3{font-size:clamp(24px,2.5vw,34px);font-weight:500;line-height:1.3;margin:0}
+.architecture-sheet-heading em{color:var(--fern)}
+.architecture-sheet-heading p{font-size:11px;line-height:1.8;text-align:right;margin:0;color:#c1ceae}
+.architecture-scroll-hint{display:none}
+.architecture-viewport{overflow:auto;overscroll-behavior-x:contain;scrollbar-color:#829568 var(--ink)}
+.architecture-viewport:focus-visible{outline:3px solid #e3c392;outline-offset:-3px}
+.archify-preview iframe{display:block;width:100%;aspect-ratio:1240/718;height:auto;border:0;background:var(--ink)}
+.architecture-actions{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 32px;border-top:1px solid #ffffff26}
+.architecture-actions p{font-size:12px;color:#c1ceae;max-width:30ch;margin:0}
+.architecture-actions a{display:flex;align-items:center;justify-content:space-between;gap:28px;padding:14px 18px;min-height:48px;background:var(--fern);color:var(--ink);font-size:12px;font-weight:500}
+.architecture-actions a:hover{background:#d1e1ae}
+.architecture-actions a>span{font-size:22px}
+.architecture-source{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #ffffff26;padding:18px 32px;font-size:10px;line-height:1.7;color:#c1ceae}
+.architecture-source a{text-decoration:underline;text-underline-offset:4px}
 @media(max-width:1100px) and (min-width:761px){.specimen{right:0;width:64%}.specimen-label,#motion{right:8%}}
-@media(max-width:760px){.archify-preview iframe{height:560px}.specimen-label{bottom:-35px;right:12%}}
+@media(max-width:760px){.architecture-sheet-heading{padding:24px 20px 12px;display:block}.architecture-sheet-heading p{text-align:left;margin-top:16px}.architecture-scroll-hint{display:flex;justify-content:space-between;gap:16px;padding:12px 20px;margin:0;border-top:1px solid #ffffff26;color:#c1ceae;font-size:11px}.archify-preview iframe{width:900px;height:522px}.architecture-actions{padding:20px;align-items:stretch;flex-direction:column;gap:16px}.architecture-actions p{max-width:none}.architecture-source{padding:16px 20px;flex-direction:column;gap:8px}.architecture-summary strong{font-size:21px}.specimen-label{bottom:-35px;right:12%}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 .command-block,.terminal-example{margin:28px 0}
 .chapter p code,.reference code,td code,th code{font-size:.92em;overflow-wrap:anywhere}
