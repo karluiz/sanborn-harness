@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#15251c">
+  <meta name="description" content="Inside Sanborn: the proposed Rust harness, Laya decision boundary, and the experiments that must prove a faster path to correct work.">
+  <title>Inside Sanborn — The field manual</title>
+  <link rel="icon" href="../public/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}</script>
+</head>
+<body>
+  <!-- THESIS: Expose the mechanism, not a generic docs card grid.
+  OWN-WORLD: Sanborn's fern, paper, faceted frog, and precise controls.
+  STORY: Explore the core, understand its authority, question the speed claim.
+  FIRST VIEWPORT: Split specimen plate; headline left, sculptural frog right.
+  FORM: User-approved field manual, a specific extension of the existing identity. -->
+  <a class="skip" href="#principle">Skip to documentation</a>
+  <header class="masthead">
+    <a class="brand" href="../"><svg viewBox="0 0 36 30" aria-hidden="true"><path d="M4 13 8 3l9 5h2l9-5 4 10-5 12H9Z"/><circle cx="12" cy="12" r="2"/><circle cx="24" cy="12" r="2"/><path d="M12 19q6 5 12 0"/></svg>sanborn<span>.</span></a>
+    <span class="manual-name">THE FIELD MANUAL</span>
+    <nav aria-label="Main"><a href="#anatomy">Explore the system ↗</a><a href="https://github.com/karluiz/sanborn-lamding">Source ↗</a></nav>
+  </header>
+  <main>
+    <section class="opening" aria-labelledby="title">
+      <div class="opening-copy">
+        <h1 id="title">Less wait.<br>More <em>leap.</em></h1>
+        <p>A harness shouldn’t think about<br>things it already knows how to do.</p>
+        <a class="enter" href="#principle">Step inside Sanborn <span aria-hidden="true">↓</span></a>
+      </div>
+      <div class="specimen">
+        <svg class="fallback" viewBox="0 0 600 500" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.4"><ellipse cx="300" cy="350" rx="220" ry="80"/><ellipse cx="300" cy="350" rx="170" ry="50"/><path d="m150 240 70-85 80 40 80-40 70 85-55 95H205Z M150 240l150-45 150 45-150 95Z M220 155l-15 180m175-180 15 180M150 240l-45 85 100 10m245-95 45 85-100 10m-175-180-18-38 35-27 37 55m106 10 18-38-35-27-37 55M255 280l45 14 45-14"/></g></svg>
+        <canvas id="specimen" aria-hidden="true"></canvas>
+        <div class="specimen-label">THE EXECUTION CORE<br><span>Rust at the center. Reasoning on demand.</span></div>
+        <button id="motion" type="button" aria-pressed="false" hidden>Pause sculpture</button>
+        <p id="scene-error" role="status" hidden>3D unavailable. The static specimen remains visible.</p>
+      </div>
+      <div class="opening-foot"><span>A proposed architecture. Not a performance claim.</span><a href="#anatomy">Inspect the anatomy ↘</a></div>
+    </section>
+    <div class="manual">
+      <aside class="contents">
+        <div>
+          <span class="contents-title">INSIDE SANBORN</span>
+          <nav aria-label="Chapters">
+            <a href="#principle" aria-current="location">The principle</a>
+            <a href="#anatomy">The anatomy</a>
+            <a href="#laya">Laya decisions</a>
+            <a href="#inference">Inference boundaries</a>
+            <a href="#proof">The proof</a>
+          </nav>
+          <p>A design in the open.<br><em>Built to be questioned.</em></p>
+          <a class="source-link" href="https://github.com/karluiz/sanborn-lamding/tree/karluiz-geometric-frog/harness">Read the Rust scaffold ↗</a>
+        </div>
+      </aside>
+      <div class="chapters">
+        <section id="principle" class="chapter">
+          <h2>Speed is what<br>you <em>don’t do.</em></h2>
+          <p class="lead">The expensive part isn’t always running the tool.<br>It’s asking what to do next. Again.</p>
+          <div class="two-columns"><p>Sanborn’s proposed fast path keeps predictable work in Rust: permissions, scheduling independent reads, and executing steps in an explicit plan. Reasoning stays with the model when the evidence actually changes.</p><p>Laya adds a typed question at the boundary. Not another paragraph. Not an agent with unchecked authority. A bounded recommendation—or an explicit absence.</p></div>
+          <div class="turns">
+            <div><span>Conventional loop</span><p>Reason <b>→</b> Read <b>→</b> Reason <b>→</b> Read <b>→</b> Reason</p></div>
+            <div><span>Proposed short path</span><p>Reason <b>→</b> <strong>Execute a bounded plan</strong> <b>→</b> Reason when needed</p></div>
+            <small>Conceptual paths, not measured results. Fewer calls only help if the task still succeeds.</small>
+          </div>
+        </section>
+        <section id="anatomy" class="chapter">
+          <h2>One core.<br><em>Two instincts.</em></h2>
+          <p class="lead">Execute what’s known. Reason about what isn’t.</p>
+          <div class="map-heading"><span>EXPLORE THE PROPOSED SYSTEM</span><span class="stamp">PROPOSAL / NOT IMPLEMENTED</span></div>
+          <div class="routes" role="group" aria-label="Architecture routes">
+            <button data-route="all" aria-pressed="true" type="button">Full anatomy</button>
+            <button data-route="fast" aria-pressed="false" type="button">Fast path</button>
+            <button data-route="reason" aria-pressed="false" type="button">Reasoning path</button>
+            <button data-route="absent" aria-pressed="false" type="button">Laya is absent</button>
+          </div>
+          <p id="route-status" class="route-status" role="status">Select a component to inspect its responsibilities.</p>
+          <div class="map">
+            <svg class="wires" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true">
+              <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 10 5 0 10Z" fill="currentColor"/></marker></defs>
+              <g fill="none" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)">
+                <path data-wire="fast reason" d="M240 80H390"/>
+                <path data-wire="fast" d="M630 80H760"/>
+                <path data-wire="fast" d="M880 120V270"/>
+                <path data-wire="fast" d="M760 310H630"/>
+                <path data-wire="fast" d="M510 270V120"/>
+                <path data-wire="reason absent" d="M390 80H335V530H390"/>
+                <path data-wire="reason absent" d="M630 530H760"/>
+                <path data-wire="reason" d="M880 490V415H700V80H630"/>
+                <path data-wire="absent" d="M390 310H240"/>
+                <path data-wire="absent" d="M120 350V530H390"/>
+                <path data-wire="fast" stroke-dasharray="5 5" d="M120 270V195H510V120"/>
+              </g>
+              <g class="wire-labels" fill="currentColor"><text x="286" y="66">task</text><text x="648" y="66">ready step</text><text x="892" y="204">allowed</text><text x="647" y="297">results</text><text x="523" y="205">update</text><text x="341" y="461">replan</text><text x="651" y="517">inference</text><text x="265" y="297">classify</text><text x="133" y="450">Absent</text><text x="161" y="181">continue only if plan permits</text></g>
+            </svg>
+            <button class="node" data-node="client" style="--x:0;--y:6.67" aria-pressed="false" type="button"><span>ENTRANCE</span><strong>CLI / client</strong><small>The objective arrives.</small></button>
+            <button class="node" data-node="runtime" style="--x:39;--y:6.67" aria-pressed="true" type="button"><span>THE CORE</span><strong>Rust runtime</strong><small>State. Budgets. Control.</small></button>
+            <button class="node" data-node="policy" style="--x:76;--y:6.67" aria-pressed="false" type="button"><span>NON-NEGOTIABLE</span><strong>Permission gate</strong><small>Every step. Every time.</small></button>
+            <button class="node" data-node="laya" style="--x:0;--y:45" aria-pressed="false" type="button"><span>OPTIONAL INSTINCT</span><strong>Laya</strong><small>A decision. Not authority.</small></button>
+            <button class="node" data-node="state" style="--x:39;--y:45" aria-pressed="false" type="button"><span>THE MEMORY</span><strong>Results &amp; state</strong><small>Evidence, not assumptions.</small></button>
+            <button class="node" data-node="scheduler" style="--x:76;--y:45" aria-pressed="false" type="button"><span>THE MUSCLE</span><strong>Tool scheduler</strong><small>Independent reads in parallel.</small></button>
+            <button class="node" data-node="reasoning" style="--x:39;--y:81.67" aria-pressed="false" type="button"><span>ON DEMAND</span><strong>Reasoning adapter</strong><small>When the plan must change.</small></button>
+            <button class="node" data-node="servers" style="--x:76;--y:81.67" aria-pressed="false" type="button"><span>APPROVED BOUNDARY</span><strong>Inference servers</strong><small>Foundry endpoints to verify.</small></button>
+          </div>
+          <div class="inspector" aria-live="polite" aria-atomic="true"><span class="inspector-symbol" aria-hidden="true">↗</span><div><h3 id="node-title">Rust runtime</h3><p id="node-copy">Owns state, budgets and cancellation. Continues validated plan steps locally; asks for reasoning when the evidence or plan no longer holds.</p><p class="constraint" id="node-limit">Boundary: completing a plan is not proof of task success.</p></div></div>
+          <p class="map-note">The map above is a guided adaptation of the proposal, not current runtime wiring.<br><a href="./architecture.html">Open the complete Archify diagram ↗</a> · <a href="./architecture.json" download>Download the diagram specification</a></p>
+          <details class="archify-preview"><summary>Explore the full Archify proposal here</summary><iframe src="./architecture.html" title="Sanborn proposed architecture — interactive Archify diagram" loading="lazy"></iframe></details>
+          <noscript><p>JavaScript is disabled. Read the complete component reference below.</p></noscript>
+          <details><summary>Complete component reference</summary><dl class="reference">
+            <dt>CLI / client</dt><dd>Supplies task, workspace and acceptance criteria. Does not grant implicit tool access.</dd>
+            <dt>Rust runtime</dt><dd>Owns run state, cancellation and budgets. Executes only valid planned transitions.</dd>
+            <dt>Permission gate</dt><dd>Checks every ready step. Laya advice never overrides it.</dd>
+            <dt>Tool scheduler</dt><dd>Bounds parallel independent reads and orders mutations according to dependencies.</dd>
+            <dt>Results &amp; state</dt><dd>Records errors and evidence. Invalidates affected reads after edits and conservatively after shell execution.</dd>
+            <dt>Laya</dt><dd>Returns typed Continue, Replan or Absent. Unavailable or uncertain advice falls back to normal reasoning.</dd>
+            <dt>Reasoning adapter</dt><dd>Handles missing plans, ambiguity and changed evidence. Validates model-produced plans before execution.</dd>
+            <dt>Inference servers</dt><dd>Verified providers for reasoning or decisions, with explicit host and data-egress approvals.</dd>
+          </dl></details>
+          <details><summary>What exists today—and what does not</summary><p><strong>Scaffolded:</strong> the core model/tool loop, provider and tool traits, policy checks, parallel consecutive read batches and ordered mutations.</p><p><strong>Proposed:</strong> bounded plans, Laya routing, cache invalidation, Foundry adapters, acceptance checking and a complete runnable CLI. The workspace is incomplete and has not been validated as a working harness.</p><p>The current path checks and policy flags are not an operating-system sandbox. Untrusted command execution needs separate isolation.</p></details>
+        </section>
+        <section id="laya" class="chapter">
+          <h2>An instinct.<br><em>Not a second brain.</em></h2>
+          <p class="lead">Ask a typed question. Get a bounded answer.<br>Or no answer at all.</p>
+          <div class="two-columns decision-columns"><div><p>Laya is a decision contract, not a confirmed installed model. A backend recommends whether new evidence needs reasoning. Rust still validates plan preconditions and permissions.</p><p>Start in shadow mode: record what Laya would choose while the normal loop stays in charge. Calibrate thresholds on labeled fixtures, not marketing probabilities.</p></div><figure><figcaption>PROPOSED CONTRACT · ILLUSTRATIVE RUST</figcaption><pre><code>enum Decision {
+    ContinuePlannedStep,
+    Replan,
+    Absent { reason: String },
+}
+
+// Advice never grants permission.
+if plan.preconditions_hold()
+    &amp;&amp; policy.permits(step) {
+    scheduler.execute(step).await?;
+}</code></pre></figure></div>
+          <div class="outcomes"><article><span aria-hidden="true">↗</span><h3>Continue</h3><p>Only an explicit existing step. Preconditions hold. Permissions still apply.</p></article><article><span aria-hidden="true">↺</span><h3>Replan</h3><p>Unexpected evidence, failed checks or ambiguity. Reason when it matters.</p></article><article><span aria-hidden="true">—</span><h3>Absent</h3><p>No backend, timeout, malformed answer or insufficient confidence. Record why; use the normal loop.</p></article></div>
+        </section>
+        <section id="inference" class="chapter">
+          <h2>The model can live elsewhere.<br><em>Control can’t.</em></h2>
+          <p class="lead">Foundry servers are potential inference backends.<br>Not permission to send everything everywhere.</p>
+          <ol class="boundaries"><li><h3>Verify the endpoint</h3><p>Identify the server, model, protocol, authentication and structured-output support. “Foundry” alone does not establish compatibility.</p></li><li><h3>Approve the data boundary</h3><p>Start with synthetic fixtures. Work code and Qhipa wiki bodies must not leave the machine without recorded egress approval.</p></li><li><h3>Separate decisions from reasoning</h3><p>Use distinct provider contracts. A model may serve both, but a decision call must save more time than it adds.</p></li><li><h3>Make failure visible</h3><p>Bound retries and timeouts. Record fallback reasons. Keep keys outside source and sensitive payloads out of traces.</p></li></ol>
+        </section>
+        <section id="proof" class="chapter">
+          <h2>Don’t count turns.<br><em>Count finished work.</em></h2>
+          <p class="lead">The fastest wrong answer is still the wrong answer.</p>
+          <p>Use identical tasks, acceptance checks and reasoning models in isolated workspaces. Separate cold and warm runs. Compare the mechanism—not different hardware or an easier task.</p>
+          <div class="table-scroll"><table><caption>Proposed experiment · no results yet</caption><thead><tr><th scope="col">Configuration</th><th scope="col">What changes</th><th scope="col">What it reveals</th></tr></thead><tbody><tr><th scope="row">A · Baseline</th><td>Conventional model/tool loop</td><td>Starting cost of correct work</td></tr><tr><th scope="row">B · Rust plans</th><td>Bounded plans and scheduling</td><td>Gains without extra inference</td></tr><tr><th scope="row">C · Plans + Laya</th><td>Typed decisions, shadow mode first</td><td>Whether routing earns its overhead</td></tr></tbody></table></div>
+          <dl class="metrics"><div><dt>Correctness</dt><dd>Acceptance checks and success rate</dd></div><div><dt>Time to done</dt><dd>Median / p95, cold and warm</dd></div><div><dt>Decision overhead</dt><dd>Latency, calls, tokens and retries</dd></div></dl>
+          <p class="honesty"><strong>No benchmark results yet.</strong> “Fastest” is the ambition. These experiments must establish the evidence.</p>
+          <div class="closing"><p>Think when it matters.<br><em>Leap when it doesn’t.</em></p><a href="#anatomy">Back to the anatomy ↑</a></div>
+        </section>
+      </div>
+    </div>
+  </main>
+  <footer><a class="brand" href="../">sanborn<span>.</span></a><span>a <strong>Fredycorp</strong> Company</span><span>Built to leap. Designed in the open.</span></footer>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

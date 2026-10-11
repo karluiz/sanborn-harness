@@ -24,6 +24,8 @@ a { color: inherit; text-decoration: none; }
 .wordmark-dot { color: #7e9167; }
 .header-note, .eyebrow, .scene-name, .site-footer > span:not(.company) { font-size: 10px; font-weight: 600; letter-spacing: 1.8px; }
 .header-note { color: var(--muted); margin-left: 42px; }
+.manual-link { padding: 12px 0; }
+.manual-link span { margin-left: 10px; }
 .about-link { font-size: 12px; padding: 12px 0 12px 12px; }
 .about-link span { margin-left: 15px; font-size: 17px; }
 main { flex: 1; display: flex; flex-direction: column; }
@@ -79,6 +81,7 @@ dialog p { font-size: 14px; line-height: 1.8; color: #69745f; }
 @media (min-width: 1600px) { #app { padding: 0 max(5%, calc((100vw - 1550px) / 2)); } }
 @media (max-width: 900px) {
   .header-note { display: none; }
+  .manual-link { display: block; margin-left: auto; font-size: 8px; letter-spacing: 1px; }
   .experience { min-height: 790px; }
   h1 { font-size: 57px; }
   .frog-label { display: none; }
