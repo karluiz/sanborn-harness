@@ -55,3 +55,16 @@ import('./scene.js').then(module => module.mount()).catch(error => {
   document.querySelector('#motion').hidden = true;
   document.querySelector('#scene-error').hidden = false;
 });
+const pond = document.querySelector('.tadpole-pond');
+const pondObserver = new IntersectionObserver(entries => {
+  if (!entries.some(entry => entry.isIntersecting)) return;
+  pondObserver.disconnect();
+  import('./tadpoles.js').then(module => module.mount()).catch(error => {
+    console.error('Tadpole pond could not load:', error);
+    pond.classList.remove('loaded');
+    document.querySelector('#pond-motion').hidden = true;
+    document.querySelector('#pond-summon').hidden = true;
+    document.querySelector('#pond-error').hidden = false;
+  });
+}, { rootMargin: '200px' });
+pondObserver.observe(pond);

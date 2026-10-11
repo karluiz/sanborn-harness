@@ -132,6 +132,47 @@ impl<W: Write> Feedback<W> {
             return;
         }
         match event {
+            PlanEvent::Summoned { count } => {
+                self.line(
+                    ">",
+                    &format!(
+                        "Summoning {count} {} - read-only, Laya-guided",
+                        if *count == 1 { "tadpole" } else { "tadpoles" }
+                    ),
+                    "36",
+                );
+                self.phase("Tadpoles investigating");
+            }
+            PlanEvent::Croak { id, status } => {
+                self.line(
+                    if *status == "blocked" { "!" } else { "+" },
+                    &format!("Croak [{id}]: {status}"),
+                    if *status == "blocked" { "33" } else { "32" },
+                );
+            }
+            PlanEvent::Tadpole { id, event } => match event.as_ref() {
+                PlanEvent::ReasoningStarted { turn } => {
+                    self.phase(&format!("Tadpole [{id}] reasoning - turn {turn}"))
+                }
+                PlanEvent::LayaDecision { result, .. } => match result {
+                    Decision::ContinuePlannedStep { .. } => {}
+                    Decision::Replan { .. } => {
+                        self.line("!", &format!("Tadpole [{id}] Laya replan"), "33")
+                    }
+                    Decision::Absent { .. } => {
+                        self.line("?", &format!("Tadpole [{id}] Laya absent"), "33")
+                    }
+                },
+                PlanEvent::ToolFinished { tool, is_error, .. } => self.line(
+                    if *is_error { "!" } else { "+" },
+                    &format!(
+                        "Tadpole [{id}] {tool}: {}",
+                        if *is_error { "error" } else { "ok" }
+                    ),
+                    if *is_error { "31" } else { "32" },
+                ),
+                _ => {}
+            },
             PlanEvent::ReasoningStarted { turn } => self.phase(&format!("Reasoning - turn {turn}")),
             PlanEvent::PlanAccepted { steps } => {
                 self.line(">", &format!("Laya plan: {steps} steps"), "36");
@@ -293,6 +334,46 @@ mod tests {
         );
         broken.phase("test");
         assert!(broken.finish().is_err());
+    }
+
+    #[test]
+    fn tadpole_feedback_preserves_plain_and_nested_json_contracts() {
+        let events = [
+            PlanEvent::Summoned { count: 1 },
+            PlanEvent::Tadpole {
+                id: "scout".into(),
+                event: Box::new(PlanEvent::ReasoningStarted { turn: 1 }),
+            },
+            PlanEvent::Croak {
+                id: "scout".into(),
+                status: "returned",
+            },
+        ];
+        let style = Style {
+            animate: false,
+            color: false,
+        };
+        let mut plain = Feedback::new(Vec::new(), style, false);
+        let mut json = Feedback::new(Vec::new(), style, true);
+        for event in &events {
+            plain.event(event);
+            json.event(event);
+        }
+        plain.finish().unwrap();
+        json.finish().unwrap();
+        let text = String::from_utf8(plain.writer.clone()).unwrap();
+        assert!(text.contains("Summoning 1 tadpole -"));
+        assert!(text.contains("Croak [scout]: returned"));
+        assert!(!text.contains('\x1b'));
+        let text = String::from_utf8(json.writer.clone()).unwrap();
+        let records: Vec<serde_json::Value> = text
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(records.len(), 3);
+        assert_eq!(records[1]["event"], "tadpole");
+        assert_eq!(records[1]["detail"]["event"], "reasoning_started");
+        assert_eq!(records[1]["id"], "scout");
     }
 
     #[test]

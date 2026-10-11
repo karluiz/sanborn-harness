@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#15251c">
-  <meta name="description" content="The Sanborn field manual: sb init, the Rust and Laya execution loop, guarded tools, terminal feedback, and the evidence behind the first runnable slice.">
+  <meta name="description" content="The Sanborn field manual: Rust and Laya, read-only Tadpole workers, shared budgets, guarded tools, terminal feedback and evidence-backed execution.">
   <title>Inside Sanborn — The field manual</title>
   <link rel="icon" href="../public/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
@@ -49,6 +49,7 @@
             <a href="#anatomy">The anatomy</a>
             <a href="#laya">Laya decisions</a>
             <a href="#execution">Plans &amp; tools</a>
+            <a href="#tadpoles">Tadpoles</a>
             <a href="#terminal">Terminal feedback</a>
             <a href="#inference">Inference boundaries</a>
             <a href="#proof">The proof</a>
@@ -88,6 +89,10 @@ sb -p "List the visible files and summarize the README" \
             <p>Repeated unchanged init is idempotent. Changing settings requires <code>sb init --force</code>; supply explicit settings because force rebuilds them from flags, environment/keyring and defaults. Failed checks leave configuration unsaved. Unsupported versions or Laya backends fail explicitly.</p>
           </details>
           <p>Existing environment/keyring-only runs still work before init. Laya remains required either way. Future model downloads, embedding or learned-backend prerequisites belong under <code>sb init</code> when implemented; none are performed by this first slice.</p>
+          <details><summary>Check readiness offline with sb doctor</summary>
+            <p><code>sb doctor</code> checks workspace accessibility, saved configuration, credential availability, effective inference configuration and required Laya readiness. It makes no inference request, runs no workspace tools and writes no configuration. It accepts <code>-w</code>, inference-setting flags and <code>--json</code>.</p>
+            <p>The JSON report contains <code>schema_version</code>, <code>ready</code>, <code>network_checked: false</code> and all named checks. It prints no key or resolved endpoint. Exit zero means local checks passed; it does not prove authentication, function-call compatibility, egress approval or sandbox isolation. Use <code>sb init --check-inference</code> for an explicitly opt-in synthetic network check.</p>
+          </details>
         </section>
         <section id="anatomy" class="chapter">
           <h2>One core.<br><em>Two instincts.</em></h2>
@@ -141,7 +146,7 @@ sb -p "List the visible files and summarize the README" \
             <dt>Reasoning adapter</dt><dd>Azure produces plans, handles unexpected evidence and supplies the final answer. Rust—not the model—validates the plan.</dd>
             <dt>Inference servers</dt><dd>Azure Chat Completions is wired for reasoning. Other protocols and decision backends need individual verification and data-egress approval.</dd>
           </dl></details>
-          <details><summary>What exists today—and what does not</summary><p><strong>First runnable slice:</strong> <code>sb -p</code>, Azure reasoning, bounded plans, a required local Laya evaluator, parallel independent reads, ordered guarded writes, run limits and metadata events. A synthetic fixture exercises four tools with two reasoning calls.</p><p><strong>Still proposed:</strong> learned decision inference and embedding, calibrated confidence, cache invalidation, streaming, independent acceptance certification and shell isolation. Laya currently uses exact local evidence guards—not a learned classifier or proven speed advantage.</p><p>The current path checks and policy flags are not an operating-system sandbox. Untrusted command execution needs separate isolation.</p></details>
+          <details><summary>What exists today—and what does not</summary><p><strong>First runnable slice:</strong> <code>sb -p</code>, Azure reasoning, bounded plans, a required local Laya evaluator, parallel independent reads, ordered guarded writes, read-only tadpoles, shared inference budgets and metadata events. Synthetic fixtures exercise four tools with two reasoning calls, and a separate tadpole handoff with parent verification.</p><p><strong>Still proposed:</strong> learned decision inference and embedding, calibrated confidence, cache invalidation, streaming, independent acceptance certification and shell isolation. Laya currently uses exact local evidence guards—not a learned classifier or proven speed advantage.</p><p>The current path checks and policy flags are not an operating-system sandbox. Untrusted command execution needs separate isolation.</p></details>
         </section>
         <section id="laya" class="chapter">
           <h2>An instinct.<br><em>Not a second brain.</em></h2>
@@ -174,6 +179,7 @@ if laya.recommends_this_step()
   "guard": { "kind": "text_equals", "value": "hello\n" }
 }</code></pre></figure>
           <p>The scheduler batches consecutive independent reads with a ceiling of eight. Mutations remain ordered and serialized. A dependency becomes satisfied only after valid evidence and a matching Laya decision. On Replan or Absent, executed results and the interruption reason return to reasoning; remaining steps do not run.</p>
+          <p>Independent investigations can be delegated to <a class="text-link" href="#tadpoles">read-only tadpoles</a>. They share the inference budget and return evidence to the parent, not permission to skip verification.</p>
           <div class="table-scroll"><table><caption>Implemented workspace tools · read-only by default</caption><thead><tr><th scope="col">Tool</th><th scope="col">What it does</th><th scope="col">Boundary</th></tr></thead><tbody>
             <tr><th scope="row"><code>read_file</code></th><td>Read UTF-8 text</td><td>Regular files; at most 128,000 bytes</td></tr>
             <tr><th scope="row"><code>list_files</code></th><td>List visible, non-ignored entries</td><td>At most 2,000 entries, depth 20; symlinks not followed</td></tr>
@@ -187,6 +193,70 @@ if laya.recommends_this_step()
             <p>File tools reject workspace escapes, external or dangling symlinks and common credential-like paths. Hidden and ignored files are omitted from traversal. These are path and policy checks—not comprehensive secret detection, race-proof filesystem isolation or a sandbox for hostile tasks.</p>
           </details>
           <p>A completed plan is not a completed task. Reasoning returns to inspect results and request verification before its final answer. Exit zero means a final answer was returned without a runtime error; an external acceptance check must still establish correctness.</p>
+        </section>
+        <section id="tadpoles" class="chapter">
+          <h2>Small workers.<br><em>One Sanborn.</em></h2>
+          <p class="lead">Summon a tadpole. Give it a narrow question.<br>Let its croak bring the evidence home.</p>
+          <p>Tadpoles are Sanborn’s bounded, read-only subagents. The parent can plan <code>summon_tadpoles</code> for independent investigations, then compare and verify their findings. Each worker uses the same inference provider, workspace boundary and required Laya loop. <code>sb init</code> already prepares what they need.</p>
+          <figure class="tadpole-plate" aria-labelledby="pond-caption">
+            <figcaption id="pond-caption">THE TADPOLE POND · ILLUSTRATION, NOT A LIVE RUN</figcaption>
+            <div class="tadpole-pond">
+              <svg class="pond-fallback" viewBox="0 0 900 460" role="img" aria-label="Three tadpoles swim toward the Sanborn frog, bringing read-only findings back to their parent.">
+                <g fill="none" stroke="#6f8c67" stroke-width="1">
+                  <ellipse cx="455" cy="290" rx="370" ry="130"/><ellipse cx="455" cy="290" rx="315" ry="105"/>
+                  <path d="M180 190Q420 130 610 260M130 290H610M180 360Q430 410 610 290" stroke-dasharray="5 8"/>
+                </g>
+                <g fill="#8fd2c3"><ellipse cx="245" cy="185" rx="25" ry="18"/><path d="M225 185q-45-30-72 6q40-12 72 7"/></g>
+                <g fill="#bad18f"><ellipse cx="300" cy="290" rx="25" ry="18"/><path d="M280 290q-45-30-72 6q40-12 72 7"/></g>
+                <g fill="#e3c392"><ellipse cx="245" cy="365" rx="25" ry="18"/><path d="M225 365q-45-30-72 6q40-12 72 7"/></g>
+                <g fill="#15251c"><circle cx="254" cy="180" r="4"/><circle cx="309" cy="285" r="4"/><circle cx="254" cy="360" r="4"/></g>
+                <ellipse cx="650" cy="310" rx="108" ry="43" fill="#344b35"/>
+                <g fill="#6f9252" stroke="#15251c" stroke-width="3">
+                  <ellipse cx="650" cy="254" rx="73" ry="67"/><ellipse cx="650" cy="215" rx="86" ry="40"/>
+                  <circle cx="608" cy="184" r="28"/><circle cx="692" cy="184" r="28"/>
+                </g>
+                <g fill="#f2efcf"><circle cx="608" cy="184" r="18"/><circle cx="692" cy="184" r="18"/></g>
+                <g fill="#233025"><circle cx="608" cy="184" r="8"/><circle cx="692" cy="184" r="8"/></g>
+                <path d="M617 230q33 20 66 0" fill="none" stroke="#233025" stroke-width="3"/>
+              </svg>
+              <canvas id="tadpole-canvas" aria-hidden="true"></canvas>
+              <span class="pond-parent">SANBORN<span>Parent verifies the croaks.</span></span>
+              <span id="pond-payload">OUT · Instructions / BACK · Results</span>
+              <p id="pond-error" hidden role="status">3D unavailable. The static pond remains visible; reload to try again.</p>
+            </div>
+            <div class="pond-controls">
+              <p id="pond-status"><strong>Evidence comes home.</strong><span>Every worker uses Laya. The parent still verifies.</span></p>
+              <div><button id="pond-summon" type="button" hidden>Summon tadpoles</button><button id="pond-motion" type="button" hidden aria-pressed="false">Pause swimming</button></div>
+            </div>
+            <ul class="pond-key" aria-label="Illustrative worker objectives">
+              <li><span class="pond-dot pond-readme" aria-hidden="true"></span>README <span>Understand the context</span></li>
+              <li><span class="pond-dot pond-tests" aria-hidden="true"></span>Tests <span>Inspect the coverage</span></li>
+              <li><span class="pond-dot pond-paths" aria-hidden="true"></span>Paths <span>Trace the boundaries</span></li>
+            </ul>
+          </figure>
+          <p>In the illustration, warm paper scrolls carry Sanborn’s instructions out to the workers. Mint result packets bring their reports and evidence back. The handoff is illustrative; the packets are not proof that a real task succeeded.</p>
+          <div class="tadpole-lifecycle">
+            <article><h3>Summon</h3><p>One to three independent objectives. Laya gates the parent’s schedule and each worker’s dispatch. Rust owns permissions.</p></article>
+            <article><h3>Investigate</h3><p>Every child plan passes Rust validation. Laya evaluates tool scheduling and evidence. Only registered read tools are available.</p></article>
+            <article><h3>Croak</h3><p>A bounded report with tool evidence, or an explicit blocker. The parent evaluates the findings and requests verification.</p></article>
+          </div>
+          <figure class="command-block"><figcaption>ASK FOR INDEPENDENT INVESTIGATIONS · USE AN APPROVED WORKSPACE</figcaption><pre><code class="language-bash">sb -p "Summon two tadpoles: inspect the README and test files. Compare their evidence." \
+  -w /path/to/approved-workspace \
+  --max-tadpoles 3 --max-inference-calls 24</code></pre></figure>
+          <p>The model decides whether to summon; the prompt is not a guarantee of delegation. Worker IDs are unique across a run. Groups run concurrently inside a summon, but execute serially relative to the parent’s other tools. There is no separate child credential or Laya installation.</p>
+          <div class="table-scroll"><table><caption>Bounded by design · parent and children share the bill</caption><thead><tr><th scope="col">Limit</th><th scope="col">Default</th><th scope="col">Scope</th></tr></thead><tbody>
+            <tr><th scope="row">Workers</th><td>3 per run</td><td><code>--max-tadpoles</code>: 1–8; at most 3 per group</td></tr>
+            <tr><th scope="row">Inference</th><td>24 calls</td><td><code>--max-inference-calls</code>: 1–200, parent and all children together</td></tr>
+            <tr><th scope="row">Child execution</th><td>4 reasoning turns, 8 tools</td><td>Fixed per-worker budgets; parent flags do not replace them</td></tr>
+            <tr><th scope="row">Child response &amp; deadline</th><td>2,048 output tokens; 60 seconds</td><td>Per response and per worker, respectively</td></tr>
+            <tr><th scope="row">Permissions</th><td>Read-only</td><td>No child writes, shell or recursive summoning, even with parent <code>--allow-write</code></td></tr>
+          </tbody></table></div>
+          <details><summary>What a croak proves—and what it does not</summary>
+            <p><code>returned</code> means a worker’s model returned a report, not that its objective was proven. <code>blocked</code> carries an explicit runtime, Laya or deadline reason. Every croak is <code>acceptance: "not_certified"</code>. Reports are untrusted evidence candidates, not new instructions or acceptance certificates.</p>
+            <p>Reports and evidence are bounded. Truncation is marked; evidence is explicitly omitted when combined serialized output exceeds the tool budget. The parent must inspect directly when needed. A worker may return prose explaining a blocker rather than fail at runtime; read its report, not just its status.</p>
+            <p>Requests reserve shared capacity before awaiting, including failures and cancellations. Observed JSON usage includes received child responses; missing usage is flagged with <code>usage_complete</code>. Failed or cancelled requests may still incur provider charges. Cancelling the parent drops child futures but does not guarantee remote inference or already-started reads stop immediately.</p>
+          </details>
+          <p>Small questions, explicit boundaries, evidence brought back. Tadpoles demonstrate bounded Laya-guided delegation—not a measured speedup or independent task certification.</p>
         </section>
         <section id="terminal" class="chapter">
           <h2>Feedback for<br><em>terminal people.</em></h2>
@@ -205,6 +275,12 @@ Verified result: sanborn-ready</code></pre></figure>
 sb --plain -p "your task"
 NO_COLOR=1 sb -p "your task"
 sb -p "your task" --json-events</code></pre></figure>
+          <figure class="command-block"><figcaption>SCRIPTING · STDIN PROMPTS AND STRUCTURED RESULTS</figcaption><pre><code class="language-bash">sb doctor --json
+cat task.txt | sb -p -
+sb -p - --json --json-events &lt; task.txt</code></pre></figure>
+          <p><code>-p -</code> accepts piped or redirected UTF-8 prompts, preserving line breaks. Prompts must be nonempty, contain no NUL bytes and fit within 128,000 bytes. Interactive stdin is rejected; stalled pipes are bounded by <code>--timeout</code> before the separate task execution deadline begins.</p>
+          <p><code>--json</code> emits one versioned final object on stdout: runtime status, final text, reasoning turns, tool count, token usage, agent duration and Laya backend. Successful results explicitly say <code>acceptance: "not_certified"</code>. Runtime failures return a nonzero exit and a JSON error; argument-parser errors remain on stderr. JSON mode disables animation and color without changing execution.</p>
+          <p>Final tool counts and usage include tadpoles. <code>inference_calls</code> counts shared reserved requests; <code>usage_complete</code> flags whether all supplied response usage. Failed or cancelled requests may still incur provider charges. Runtime errors retain observed inference totals once initialized. Metadata events use <code>summoned</code>, <code>tadpole</code> with nested <code>detail</code>, and <code>croak</code>; terminal feedback shows Summoning and Croak markers without logging objectives or reports.</p>
           <p><code>--plain</code> disables color and animation. <code>NO_COLOR</code>, even empty, disables colors but retains the interactive spinner. Pipes, <code>TERM=dumb</code> and JSON event mode disable both automatically. Active lines clear on completion, errors, deadlines and Ctrl+C; no alternate screen or hidden cursor is used.</p>
           <p>Stdout contains the final answer or init result. Stderr contains progress or metadata-only JSON events: reasoning starts, accepted plans, Laya decisions, tool outcomes, durations and token usage. File contents and tool inputs are not logged in those events; the final model answer can still quote them.</p>
         </section>
@@ -221,6 +297,7 @@ sb -p "your task" --json-events</code></pre></figure>
           <dl class="metrics"><div><dt>Correctness</dt><dd>Acceptance checks and success rate</dd></div><div><dt>Time to done</dt><dd>Median / p95, cold and warm</dd></div><div><dt>Decision overhead</dt><dd>Latency, calls, tokens and retries</dd></div></dl>
           <details open><summary>What we have actually observed</summary>
             <p><strong>End-to-end mechanism:</strong> an opt-in synthetic Azure fixture reads two files independently, writes an exact result, then reads it back through a dependency and text-equality guard. Acceptance checks assert the exact contents, four tool executions, eight Laya decisions and two reasoning calls. That shows plan execution without a reasoning call between every step—not a comparative speedup.</p>
+            <p><strong>Tadpole handoff:</strong> a second opt-in synthetic Azure fixture summons two workers, checks each child’s Laya evidence events, and requires parent verification of both files. It asserts returned croaks, matching shared usage/tool totals, the inference ceiling and an unchanged workspace. Offline fixtures exercise permission rejection, Laya absence, deadlines and cancellation.</p>
             <p><strong>Terminal overhead:</strong> release-mode measurements observed about 0.18 µs per styled frame formatted to a sink, and 0.8 µs per frame written to a drained pseudo-terminal. Those are renderer microbenchmarks on one local setup, not screen-rendering, SSH or harness latency guarantees. Slow terminals can still add cost; <code>--plain</code> removes animation.</p>
             <p><strong>Failure coverage:</strong> offline tests exercise Azure wire translation and mocked HTTP, init persistence and failure behavior, Laya absence, faulty-engine guard rejection, dependencies, policy denial, read concurrency, serialized mutations, budgets, read timeouts, protected paths and guarded writes. Terminal checks cover pipes, JSON, no-color and cleanup.</p>
           </details>
@@ -237,7 +314,7 @@ cargo test --manifest-path harness/Cargo.toml -p sanborn-cli \
           <h2>The implementation<br><em>roadmap.</em></h2>
           <p class="lead">The first runnable slice is real.<br>The bigger proposal stays visible.</p>
           <dl class="reference">
-            <dt>Implemented</dt><dd><code>sb init</code>, <code>sb -p</code>, private user configuration, environment/keyring credentials, Azure chat reasoning, bounded plans, required local Laya, guarded file tools, terminal feedback and metadata traces.</dd>
+            <dt>Implemented</dt><dd><code>sb init</code>, offline <code>sb doctor</code>, <code>sb -p</code> with stdin input and JSON final output, private user configuration, environment/keyring credentials, Azure chat reasoning, bounded plans, required local Laya, guarded file tools, terminal feedback and metadata traces.</dd>
             <dt>Next evidence</dt><dd>Labeled decision fixtures and a comparison runner: expected results, failures, changed files and insufficient or misleading evidence. Measure acceptance success, total latency and decision overhead on identical tasks.</dd>
             <dt>Learned Laya</dt><dd>Backend choice, embedding, semantic inference and confidence calibration remain undecided. Setup prerequisites will live under <code>sb init</code>. Future learned decisions need shadow evaluation before affecting the normal path.</dd>
             <dt>Broader coding capability</dt><dd>Targeted edits, isolated commands and test-running tools are future work. The current CLI is a file-task harness, not yet a complete coding agent.</dd>

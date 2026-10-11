@@ -84,6 +84,76 @@ keys into command arguments, shell history, `.env` files in this repository,
 documentation, or commits. Account-specific infrastructure is not hardcoded.
 HTTPS is required, redirects are disabled, and HTTP error bodies are not logged.
 
+## Diagnostics and automation
+
+```sh
+sb doctor
+sb doctor --json -w /path/to/approved-workspace
+cat task.txt | sb -p -
+sb -p - --json --json-events < task.txt
+```
+
+`sb doctor` checks workspace accessibility, saved configuration, local credential
+availability, effective inference configuration, and required Laya readiness.
+It uses the same configuration precedence as task execution and accepts
+`--endpoint`, `--deployment`, `--api-version`, and `-w`. It makes no inference
+request, runs no workspace tool, and changes no configuration. Missing saved
+configuration is acceptable when environment/keyring setup supplies the values;
+malformed saved configuration is not silently ignored.
+
+Doctor reports every check, with exit zero only when all local checks pass.
+Its versioned JSON report has `schema_version`, `ready`, `network_checked: false`
+and `checks` (`name`, `ready`, `detail`). Neither API keys nor resolved endpoint
+values are printed. Local readiness does not establish authentication, model
+availability, tool compatibility, data-egress approval or OS isolation.
+
+`-p -` reads a prompt from piped stdin or file redirection. It preserves line
+breaks and requires nonempty UTF-8 without NUL bytes, at most 128,000 bytes.
+The same validation applies to literal prompts. Interactive terminal stdin is
+rejected instead of starting an indefinite input session. Stdin acquisition
+has its own deadline using `--timeout`; task execution then has its existing
+execution deadline. One detached reader thread exists only for stdin mode,
+so an open pipe does not prevent process exit after timeout or cancellation.
+This is separate from the thread-free terminal animation.
+
+`--json` writes a single final JSON object to stdout and disables terminal
+animation/color. Combine it with `--json-events` for metadata events on stderr.
+Success fields:
+
+```json
+{
+  "schema_version": 1,
+  "status": "completed",
+  "acceptance": "not_certified",
+  "final_text": "...",
+  "turns": 2,
+  "tool_calls": 4,
+  "inference_calls": 2,
+  "usage_complete": true,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": 0,
+    "cache_write_tokens": 0
+  },
+  "duration_ms": 0,
+  "stop_reason": "end_turn",
+  "laya_backend": "local-evidence"
+}
+```
+
+Values above are illustrative. `duration_ms` covers the agent execution,
+not stdin, setup, or process startup. Runtime failures exit nonzero and emit
+`schema_version`, `status: "error"`, `acceptance: "not_certified"`, `error`, and
+a note that completed writes are not rolled back. Error results do not include
+tool counts. They include observed shared inference calls and usage once the
+provider is initialized, or null beforehand. `usage_complete` is false if any
+reserved request failed or was cancelled; charges for those requests may still
+exist at the provider. Argument-parsing errors retain Clap's stderr output;
+they do not enter the JSON runtime contract. Error diagnostics also go to stderr
+and are not JSON event records. Final text may contain workspace content even
+when event traces omit it.
+
 ## Execution architecture
 
 ```text
@@ -117,6 +187,50 @@ natural-language acceptance criteria.
 The original conventional `Agent` remains available for offline comparison.
 `sb` uses `PlannedAgent`; there is no CLI switch to disable Laya.
 
+## Tadpoles: summon, investigate, croak
+
+The parent can request `summon_tadpoles` in a bounded plan for independent,
+narrow read-only investigations. No separate setup is needed: tadpoles share
+the parent's configured inference provider, workspace boundary and required
+Laya backend. Laya gates parent scheduling, each worker's dispatch, and every
+child tool's scheduling and evidence. Rust still validates every child plan.
+
+```sh
+sb -p "Summon two tadpoles: one to inspect the README, one to inspect visible test files. Compare their evidence." \
+  -w /path/to/approved-workspace --max-tadpoles 3 --max-inference-calls 24
+```
+
+The model decides whether to summon; a prompt is not a guarantee of delegation.
+Each group contains one to three concurrent workers; groups execute serially
+relative to other parent tools. IDs are unique across the run. The default
+run cap is three tadpoles (`--max-tadpoles`, range 1–8). Each worker has four
+reasoning turns, eight tool calls, 2,048 output tokens per response and a
+60-second deadline. Its registry contains only read tools: no writes, shell
+execution or recursive summoning, even with parent `--allow-write`.
+
+Parent and children share a 24-call inference ceiling
+(`--max-inference-calls`, range 1–200). Requests reserve capacity before awaiting,
+including requests that fail or are cancelled; no automatic retries occur.
+`--max-turns`, `--max-tool-calls` and `--max-tokens` bound the parent; the fixed
+worker budgets are additional. Final JSON and the parent completion event
+include child token usage and tool counts. Usage sums received responses,
+not an authoritative bill; failed/cancelled requests can still cost tokens.
+`usage_complete` makes missing response usage explicit.
+
+Each croak has a worker ID and either `returned` (final model report with
+bounded tool evidence) or `blocked` (explicit runtime/Laya/deadline reason).
+`returned` does not mean the objective was proven. Every croak is
+`acceptance: "not_certified"`; the parent must evaluate and verify findings.
+Evidence/report size is bounded; truncation is marked, and evidence is
+explicitly omitted if combined serialized output exceeds the tool budget.
+Cancelling the parent drops child request futures, but does not guarantee
+remote inference or already-started filesystem reads stop immediately.
+
+Feedback uses **Summoning** and **Croak [worker]** markers.
+Metadata events are `summoned`, `tadpole` (ID plus nested `detail` event),
+and `croak`. They omit objectives, reports and file contents.
+This demonstrates bounded Laya-guided delegation, not a measured speedup.
+
 ## Tools and boundaries
 
 | Tool | Behavior |
@@ -125,6 +239,7 @@ The original conventional `Agent` remains available for offline comparison.
 | `list_files` | Visible, non-ignored recursive entries; no followed symlinks |
 | `search_files` | Bounded Rust-regex search; binary/oversized skips and limits reported |
 | `write_file` | Opt-in atomic create or compare-before-replace; existing parent required |
+| `summon_tadpoles` | Bounded read-only Laya workers; structured noncertified croaks |
 
 Writes require `--allow-write`. For creation, `expected_content` must be null.
 For replacement, it must exactly match the current contents. Replacement keeps
@@ -178,7 +293,9 @@ cargo clippy --manifest-path harness/Cargo.toml --workspace --all-targets --lock
 Offline tests cover Azure wire translation, mocked HTTP authentication/errors,
 plan dependencies, policy denial, Laya absence, faulty-backend guard rejection,
 bounded read concurrency, serialized mutations, tool budgets and read timeouts,
-path escapes, protected paths, and guarded file writes.
+path escapes, protected paths, and guarded file writes. Tadpole fixtures cover
+concurrent workers, shared inference accounting/budget exhaustion, parent
+handoff, Laya absence, forbidden registries/tools, deadlines and cancellation.
 
 An explicitly opt-in Azure smoke test sends only synthetic fixtures:
 
