@@ -244,7 +244,9 @@ The parent chooses a contract explicitly; there is no learned role router.
     {"id": "map", "specialty": "repository_scout", "scope": ".",
      "objective": "Map the visible repository and cite relevant paths"},
     {"id": "tests", "specialty": "test_analyst", "scope": "tests",
-     "objective": "Inspect test evidence and explain limitations"}
+     "objective": "Inspect test evidence and explain limitations"},
+    {"id": "code", "specialty": "coder", "scope": "src",
+     "objective": "Inspect the greeting function and propose a fix"}
   ]
 }
 ```
@@ -327,6 +329,37 @@ scope, protected paths, Laya rejection, absent proposals, write policy, stale
 files and duplicate application. An opt-in synthetic Azure fixture exercises
 coder proposal → parent application → exact reread; model choices can still fail,
 so the fixture checks the actual file rather than accepting final prose.
+
+#### Runnable synthetic example and regression tests
+
+From the repository root, with `sb` installed and Azure configured for approved
+synthetic data:
+
+```sh
+sh harness/examples/coder/run.sh
+```
+
+The script copies `greeting.txt` (`hello old` followed by one newline) into a
+temporary workspace and sends the checked-in `task.txt` through stdin. A coder
+proposes `hello new` followed by one newline; the parent applies `code-patch`
+and rereads with an exact guard. The script independently compares file bytes
+and prints `PASS: greeting.txt contains exactly hello new followed by one newline.`
+only on a match. It cleans up afterward and exits nonzero on errors or mismatch.
+This uses real inference and may incur charges; model behavior is not guaranteed.
+
+```sh
+# Offline, deterministic success and rejection cases.
+cargo test --manifest-path harness/Cargo.toml -p sanborn-tools --test coder
+
+# Opt-in Azure integration using the same checked-in prompt and fixture.
+cargo test --manifest-path harness/Cargo.toml -p sanborn-cli --test azure_smoke \
+  coder_proposes_then_parent_applies_with_laya -- --ignored
+```
+
+The Azure test asserts coder proposal and parent application/read events,
+a returned croak, exact resulting file contents, unchanged file count and
+complete received-response usage. The tests are externally executed regression
+checks; neither coder nor test-analyst runs commands or certifies coverage.
 
 ## Tools and boundaries
 

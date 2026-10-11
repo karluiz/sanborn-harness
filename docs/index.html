@@ -289,6 +289,12 @@ if laya.recommends_this_step()
       "specialty": "test_analyst",
       "scope": "tests",
       "objective": "Inspect test evidence and its limitations"
+    },
+    {
+      "id": "code",
+      "specialty": "coder",
+      "scope": "src",
+      "objective": "Inspect the greeting function and propose a fix"
     }
   ]
 }</code></pre></figure>
@@ -309,6 +315,29 @@ apply with apply_tadpole_patch, then read the changed file
 to verify. Do not claim tests ran."</code></pre></figure>
           <p>V1 is deliberately narrow: one existing-file replacement per worker, at most 8,000 bytes each for old and new contents. No new files, deletion, multi-file patches or command execution. A croak carries the replacement, proposal ID, byte counts and <code>contract.proposal_complete</code>; incomplete contracts remain blocked even if the report sounds confident.</p>
           <p>Proposals live only within the run. An application attempt consumes its ID, including failures; inspect the error and summon a fresh worker. Parallel coders editing the same file do not merge automatically: after one applies, another based on stale contents must fail. These are optimistic content and path checks, not filesystem locking or an OS sandbox.</p>
+          <h3 id="coder-example">Try it. Check the actual file.</h3>
+          <p>The repository includes a disposable synthetic example in <code>harness/examples/coder</code>. It starts with <code>greeting.txt</code> containing <code>hello old\n</code>, asks one coder to propose <code>hello new\n</code>, then asks the parent to apply and reread it. The script checks the exact file bytes itself, not the model’s final answer.</p>
+          <figure class="command-block"><figcaption>FROM THE REPOSITORY ROOT · CONFIGURED AZURE REQUIRED · USES INFERENCE</figcaption><pre><code class="language-bash"># Requires an installed sb and approved synthetic-data endpoint.
+sh harness/examples/coder/run.sh
+
+# Expected final line (only when the actual file matches):
+# PASS: greeting.txt contains exactly hello new followed by one newline.</code></pre></figure>
+          <p>The script creates a temporary workspace, copies only the synthetic greeting fixture, runs <code>sb</code> with bounded calls, and cleans up afterward. It returns nonzero on a CLI error or mismatched file; a mismatch prints metadata events for diagnosis. Model behavior can vary—do not treat this expected output as a promised successful run.</p>
+          <details><summary>What should happen inside the run?</summary><ol class="boundaries">
+            <li><h3>Inventory and read</h3><p>The coder’s Rust-authored baseline lists the fixture before reasoning. The coder reads <code>greeting.txt</code>; it still contains <code>hello old\n</code>.</p></li>
+            <li><h3>Return a proposal</h3><p>The coder submits <code>propose_patch</code> with the observed old contents and replacement. Laya checks <code>patch_proposal</code> evidence. The returned <code>code-patch</code> is a proposal, not a write.</p></li>
+            <li><h3>Parent applies and verifies</h3><p>The parent calls <code>apply_tadpole_patch</code>, then <code>read_file</code> with a <code>text_equals</code> guard. The script independently compares the resulting file with exactly <code>hello new\n</code>.</p></li>
+          </ol></details>
+          <figure class="command-block"><figcaption>REGRESSION CHECKS · OFFLINE FIRST, NETWORK EXPLICITLY OPT-IN</figcaption><pre><code class="language-bash"># Deterministic contract and rejection cases; no inference.
+cargo test --manifest-path harness/Cargo.toml \
+  -p sanborn-tools --test coder
+
+# Real Azure: shared example fixture, proposal/application events,
+# exact file contents and shared response-usage completeness.
+cargo test --manifest-path harness/Cargo.toml \
+  -p sanborn-cli --test azure_smoke \
+  coder_proposes_then_parent_applies_with_laya -- --ignored</code></pre></figure>
+          <p>The offline regression covers missing reads, wrong old contents, scope escapes, protected paths, size limits, no-op changes, wrong guards, Laya rejection, incomplete baselines, absent proposals, denied writes, stale files and repeated application. The Azure test uses the same checked-in prompt and greeting as the runnable example, and asserts a returned coder croak, child proposal, parent application and subsequent read. These tests are run by you or the regression runner—not by a Tadpole. They do not certify unrelated code or coverage.</p>
         </section>
         <section id="terminal" class="chapter">
           <h2>Feedback for<br><em>terminal people.</em></h2>

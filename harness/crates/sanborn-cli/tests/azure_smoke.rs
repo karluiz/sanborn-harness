@@ -8,18 +8,29 @@ use serde_json::Value;
 #[ignore = "real Azure inference; synthetic coder fixture only"]
 fn coder_proposes_then_parent_applies_with_laya() {
     let root = tempfile::tempdir().unwrap();
-    std::fs::write(root.path().join("greeting.txt"), "hello old\n").unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_sb")).args([
-        "-p",
-        "Synthetic acceptance fixture: summon exactly one tadpole id=code, specialty=coder, \
-        scope=., objective=change greeting.txt from hello old plus newline to exactly hello new \
-        plus newline. The coder must read_file then propose_patch with patch_proposal guard; \
-        it must not write. Parent inspect the returned code-patch proposal, apply through \
-        apply_tadpole_patch (not write_file), then independently read greeting.txt with text_equals \
-        guard for hello new plus newline. Report only verified changes; no tests were executed.",
-        "--allow-write","--json","--json-events","--max-turns","6",
-        "--max-inference-calls","12","--timeout","150","-w",
-    ]).arg(root.path()).output().unwrap();
+    std::fs::write(
+        root.path().join("greeting.txt"),
+        include_str!("../../../examples/coder/greeting.txt"),
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_sb"))
+        .args([
+            "-p",
+            include_str!("../../../examples/coder/task.txt"),
+            "--allow-write",
+            "--json",
+            "--json-events",
+            "--max-turns",
+            "6",
+            "--max-inference-calls",
+            "12",
+            "--timeout",
+            "150",
+            "-w",
+        ])
+        .arg(root.path())
+        .output()
+        .unwrap();
     let trace = String::from_utf8(output.stderr).unwrap();
     assert!(output.status.success(), "sb failed: {trace}");
     let events: Vec<Value> = trace
@@ -32,21 +43,29 @@ fn coder_proposes_then_parent_applies_with_laya() {
     assert!(events.iter().any(|e| e["event"] == "tadpole"
         && e["id"] == "code"
         && e["detail"]["event"] == "tool_finished"
-        && e["detail"]["tool"] == "propose_patch"));
+        && e["detail"]["tool"] == "propose_patch"
+        && e["detail"]["is_error"] == false));
     assert!(!events
         .iter()
         .any(|e| e["event"] == "tadpole" && e["detail"]["tool"] == "write_file"));
     let apply = events
         .iter()
-        .position(|e| e["event"] == "tool_finished" && e["tool"] == "apply_tadpole_patch")
+        .position(|e| {
+            e["event"] == "tool_finished"
+                && e["tool"] == "apply_tadpole_patch"
+                && e["is_error"] == false
+        })
         .unwrap();
     assert!(events[apply + 1..]
         .iter()
-        .any(|e| e["event"] == "tool_finished" && e["tool"] == "read_file"));
+        .any(|e| e["event"] == "tool_finished"
+            && e["tool"] == "read_file"
+            && e["is_error"] == false));
     assert_eq!(
         std::fs::read_to_string(root.path().join("greeting.txt")).unwrap(),
         "hello new\n",
-        "Synthetic coder trace: {trace}"
+        "Synthetic coder trace: {trace}\nResult: {}",
+        String::from_utf8_lossy(&output.stdout)
     );
     let result: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(result["usage_complete"], true);
