@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Sanborn app</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <span class="brand"><svg viewBox="0 0 36 30" aria-hidden="true"><path d="M4 13 8 3l9 5h2l9-5 4 10-5 12H9Z"/><circle cx="12" cy="12" r="2"/><circle cx="24" cy="12" r="2"/><path d="M12 19q6 5 12 0"/></svg>sanborn<span>.</span></span>
+    <dl class="facts">
+      <div><dt>Reasoning</dt><dd id="reasoning-kind">…</dd></div>
+      <div><dt>Laya</dt><dd id="laya">required</dd></div>
+      <div><dt>Bound</dt><dd>127.0.0.1 only</dd></div>
+    </dl>
+  </header>
+
+  <p id="session" class="banner" role="alert" hidden></p>
+  <p id="reasoning-label" class="note-strip"></p>
+
+  <main class="pond">
+    <section class="task" aria-labelledby="task-title">
+      <h1 id="task-title">Give the frog <em>one</em> task.</h1>
+
+      <form id="workspace-form" class="field">
+        <label for="workspace-path">Workspace</label>
+        <div class="inline">
+          <input id="workspace-path" name="path" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="/absolute/path/to/approved-workspace" aria-describedby="workspace-help">
+          <button type="submit">Select</button>
+        </div>
+        <p id="workspace-help" class="help">Rust checks the path; tools stay inside it. Use only folders approved for your inference endpoint.</p>
+        <p class="selected">Selected: <code id="workspace-current">none</code></p>
+      </form>
+
+      <div class="permission" aria-labelledby="perm-title">
+        <h2 id="perm-title" class="eyebrow">Permission</h2>
+        <p><strong id="perm-state">Read-only.</strong> Runs can list, read and search. They cannot write, run commands or delete.</p>
+        <p class="help">Writes happen only when you grant one for a single inspected coder proposal. Rust applies it through <code>apply_tadpole_patch</code>.</p>
+      </div>
+
+      <form id="run-form" class="field">
+        <label for="prompt">Task</label>
+        <textarea id="prompt" name="prompt" rows="6" maxlength="128000"
+                  placeholder="Summon one coder scoped to . to change greeting.txt so it reads hello new. Do not claim tests ran."
+                  aria-describedby="prompt-help"></textarea>
+        <p id="prompt-help" class="help">Sent to the reasoning provider with selected tool results. Limits: <span id="limits">…</span>.</p>
+        <div class="actions">
+          <button id="run" type="submit" class="primary">Run read-only</button>
+          <button id="cancel" type="button" hidden>Cancel run</button>
+        </div>
+        <p id="form-error" class="error" role="alert" hidden></p>
+      </form>
+    </section>
+
+    <section class="run" aria-labelledby="run-title">
+      <div class="run-head">
+        <h2 id="run-title">Run</h2>
+        <span id="status" class="status" data-status="idle">idle</span>
+      </div>
+
+      <ol class="ledger" aria-label="What has and has not happened">
+        <li><span>Runtime</span><strong id="l-runtime">not started</strong></li>
+        <li><span>Proposal</span><strong id="l-proposal">none</strong></li>
+        <li><span>Application</span><strong id="l-application">none</strong></li>
+        <li><span>Verification</span><strong id="l-verification">none · no tests run</strong></li>
+      </ol>
+
+      <p id="meters" class="meters" aria-live="polite"></p>
+
+      <div id="run-error" class="error-box" role="alert" hidden>
+        <strong id="run-error-title">Run failed</strong>
+        <p id="run-error-text"></p>
+        <p id="run-error-hint" class="help"></p>
+      </div>
+
+      <div id="tadpoles-wrap" hidden>
+        <h3 class="eyebrow">Tadpoles</h3>
+        <ul id="tadpoles" class="tadpoles"></ul>
+      </div>
+
+      <details id="progress-wrap" open hidden>
+        <summary>Progress <span id="progress-count"></span></summary>
+        <ol id="progress" class="progress" aria-live="polite" aria-relevant="additions"></ol>
+      </details>
+
+      <div id="result-wrap" hidden>
+        <h3 class="eyebrow">Final answer</h3>
+        <p class="help">Written by the model. The run completed but nothing is certified. Check claims against the evidence.</p>
+        <pre id="result" class="result"></pre>
+      </div>
+
+      <div id="proposals-wrap" hidden>
+        <h3 class="eyebrow">Coder proposals</h3>
+        <div id="proposals"></div>
+      </div>
+
+      <p id="empty" class="empty">Select a workspace and submit a task. Progress, tadpoles and proposals appear here.</p>
+    </section>
+  </main>
+
+  <footer><span>Sanborn runs in Rust with required Laya gates. This page only displays it.</span><span>Built to leap. Local only.</span></footer>
+</body>
+</html>

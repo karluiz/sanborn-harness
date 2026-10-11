@@ -51,6 +51,7 @@
             <a href="#execution">Plans &amp; tools</a>
             <a href="#tadpoles">Tadpoles</a>
             <a href="#terminal">Terminal feedback</a>
+            <a href="#app">Local app</a>
             <a href="#inference">Inference boundaries</a>
             <a href="#proof">The proof</a>
             <a href="#next">What comes next</a>
@@ -393,6 +394,16 @@ sb -p - --json --json-events &lt; task.txt</code></pre></figure>
           <p>Final tool counts and usage include tadpoles. <code>inference_calls</code> counts shared reserved requests; <code>usage_complete</code> flags whether all supplied response usage. Failed or cancelled requests may still incur provider charges. Runtime errors retain observed inference totals once initialized. Metadata events use <code>summoned</code>, <code>tadpole</code> with nested <code>detail</code>, and <code>croak</code>; terminal feedback shows Summoning and Croak markers without logging objectives or reports.</p>
           <p><code>--plain</code> disables color and animation. <code>NO_COLOR</code>, even empty, disables colors but retains the interactive spinner. Pipes, <code>TERM=dumb</code> and JSON event mode disable both automatically. Active lines clear on completion, errors, deadlines and Ctrl+C; no alternate screen or hidden cursor is used.</p>
           <p>Stdout contains the final answer or init result. Stderr contains progress or metadata-only JSON events: reasoning starts, accepted plans, Laya decisions, tool outcomes, durations and token usage. File contents and tool inputs are not logged in those events; the final model answer can still quote them.</p>
+        </section>
+        <section id="app" class="chapter">
+          <h2>One pond,<br><em>one page.</em></h2>
+          <p class="lead">A small local page over the same harness.<br>It shows what Rust and Laya do. It decides nothing.</p>
+          <figure class="command-block"><figcaption>OFFLINE DEMO · DISPOSABLE FIXTURE · SYNTHETIC REASONING SCRIPT</figcaption><pre><code class="language-bash">sh harness/examples/app/run.sh
+sh harness/examples/app/run.sh azure
+cargo run --locked --manifest-path harness/Cargo.toml -p sanborn-app -- -w /path/to/approved-workspace</code></pre></figure>
+          <p><code>sanborn-app</code> links the harness in-process. Configuration, credential lookup, the Laya readiness check and the tool and tadpole assembly come from the same <code>sanborn-cli</code> library that <code>sb</code> uses. The page can only select a workspace, start or cancel one run, and apply one proposal. It shows Laya decisions, plan validation, tool outcomes, croaks and shared usage. The final answer is always labelled <code>not_certified</code>.</p>
+          <ol class="boundaries"><li><h3>Runs are read-only</h3><p>Every run uses the read-only policy. A coder proposal appears as a diff of the bytes the coder read against the replacement. Nothing is written while you inspect it.</p></li><li><h3>Writes need a grant per proposal</h3><p>Apply runs a fixed Rust plan through Laya: <code>apply_tadpole_patch</code>, then a <code>read_file</code> that must match the proposal exactly. No model turn runs under write permission. Without the grant, Rust’s policy check rejects the plan before any tool runs.</p></li><li><h3>Four states stay separate</h3><p>Runtime, proposal, application and verification have separate labels. Verification means the file bytes match after an exact reread. No label says tests ran.</p></li><li><h3>Stale writes are refused</h3><p>Rust marks a proposal stale when its file changes. The check repeats when the page regains focus, and compare-before-replace also rejects late edits. Old runs and changed workspaces return HTTP 410. Only one run or application can be active, and each proposal gets one attempt.</p></li><li><h3>Loopback is not authentication</h3><p>The app binds <code>127.0.0.1</code> and rejects foreign Host and Origin headers. It requires a 256-bit token for each launch and sends a strict CSP. Credentials stay in Rust. Anyone holding the printed link can act as you, so never expose it through a proxy or tunnel.</p></li></ol>
+          <p>The <code>--synthetic</code> demo swaps only the model for a fixed script that ignores your prompt. Rust, Laya, the coder contract, tools and budgets still run for real, and the page says so on every screen. It is not evidence of model behavior. App packaging and distribution are a separate decision.</p>
         </section>
         <section id="inference" class="chapter">
           <h2>The model can live elsewhere.<br><em>Control can’t.</em></h2>

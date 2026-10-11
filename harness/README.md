@@ -402,6 +402,114 @@ a returned croak, exact resulting file contents, unchanged file count and
 complete received-response usage. The tests are externally executed regression
 checks; neither coder nor test-analyst runs commands or certifies coverage.
 
+## Local app: `sanborn-app`
+
+A minimal local web page for one task at a time. It is a front end to the same
+harness, not a second agent: there is no model or tool loop in the browser.
+
+```sh
+# Offline demo: disposable greeting fixture, fixed synthetic reasoning script.
+sh harness/examples/app/run.sh
+# Same fixture with real Azure inference (configure with `sb init` first).
+sh harness/examples/app/run.sh azure
+
+# Any approved workspace.
+cargo run --locked --manifest-path harness/Cargo.toml -p sanborn-app -- \
+  -w /path/to/approved-workspace
+```
+
+The app prints a `http://127.0.0.1:PORT/#token=…` link. Open that exact link.
+Ctrl+C stops the server and cancels an active run. Flags mirror `sb`:
+`--endpoint`, `--deployment`, `--api-version`, `--max-inference-calls`,
+`--max-tadpoles`, `--timeout` and `--port` (default `0` picks a free port).
+
+**Integration boundary.** `sanborn-app` is a Rust binary that links the harness
+in-process. Configuration precedence, keyring/environment credential lookup,
+the Laya readiness check and the tool/Tadpole assembly come from the
+`sanborn-cli` library that `sb` itself uses, so the two cannot drift. The page
+sends only three intents: select a workspace, start/cancel a run, and apply a
+proposal. Rust validates and executes everything. It does not shell out to
+`sb`: coder proposals live in run-local memory, and keeping them in-process
+is what lets you inspect a proposal first and grant a write afterwards.
+
+**What you see.**
+
+- The selected workspace and the permission state.
+- Laya decisions, Rust plan validation, tool completions and Tadpole croaks,
+  as the same metadata-only events as `--json-events`.
+- Shared inference calls, token usage and `usage_complete`.
+- The model's final answer, labelled `not_certified`.
+- Each coder proposal as a line diff of the bytes the coder read against the
+  replacement.
+
+Four separate states are never merged: **runtime** (the run completed, failed or
+was cancelled), **proposal** (open, not applied), **application** (a guarded
+write happened or not) and **verification** (an exact reread matched, or not).
+No state claims tests ran.
+
+**Permissions.** Every run is read-only (`Policy::read_only`). To write, you
+open one proposal, tick a per-proposal grant and press *Apply*. Rust then runs
+a fixed two-step plan through Laya with no reasoning turn:
+`apply_tadpole_patch {proposal_id}` followed by `read_file` guarded by
+`text_equals` on the proposed contents. Without the grant, Rust's policy check
+rejects the plan before any tool runs; nothing is written or consumed. With
+the grant, the existing guards still apply: Laya-accepted contract, same
+workspace, exact old contents, one attempt per proposal. A model never plans
+under write permission in the app.
+
+**Stale and duplicate protection.** A proposal is marked stale and cannot be
+applied when its file no longer holds the bytes the coder read. The check is
+rerun whenever the page regains focus. If the file changes after that check,
+Rust's compare-before-replace still fails the write. A proposal from an earlier
+run, or from before a workspace change, is rejected as stale (HTTP 410). Only
+one run *or* application can be active at a time. Duplicate submissions get
+HTTP 409, and the workspace cannot change mid-run.
+
+**Lifecycle.** Cancelling drops the run future, including Tadpole requests
+(already-sent requests may still be billed). A finished or cancelled task never
+overwrites a newer state. Starting a new run discards the previous run's
+proposals. On shutdown the active run is cancelled first. Event history is
+capped at 4,000 records per run. Nothing is persisted to disk.
+
+**Local trust boundary.**
+
+- The server binds `127.0.0.1` only.
+- It answers only `Host: 127.0.0.1:PORT` or `localhost:PORT` (DNS-rebinding
+  defense), and refuses cross-origin API requests.
+- Every API call needs the per-launch 256-bit token as a bearer header.
+- The page keeps the token in memory, removes it from the address bar and
+  stores nothing in browser storage.
+- Responses carry a strict CSP (`default-src 'none'`, same-origin scripts only,
+  no framing) and `no-store`. Assets are compiled into the binary and make no
+  external requests.
+- Credentials are resolved inside Rust at each run start and are never sent to,
+  logged for, or stored in the page.
+
+This is not authentication. Anyone who can read the printed link or act as
+your local user can drive the app with your inference credentials and write
+grants. Never put it behind a public interface, proxy or tunnel.
+
+**Synthetic mode.** `--synthetic` swaps only the model for a fixed script that
+ignores your prompt and works only on the `examples/app` fixture. Rust plan
+validation, Laya, the coder contract, tools and budgets run for real. The page
+labels this mode on every screen. It exists for the demo and reproducible
+tests; it is not evidence of model behaviour.
+
+```sh
+# Deterministic integration tests: success, provider failure, script exhaustion,
+# shared budget exhaustion, deadline, cancellation, duplicate runs, denied writes,
+# stale proposals (edited file, replaced run, changed workspace), duplicate
+# application, and the Host/Origin/token guards. A separate test drives the real
+# Azure configuration path with a synthetic key and an unroutable endpoint and
+# asserts the key never appears in any response.
+cargo test --manifest-path harness/Cargo.toml -p sanborn-app
+```
+
+The only new dependency is `axum` (HTTP/1 + JSON, loopback only); `hyper` and
+`tower` were already in the tree through `reqwest`. The page itself is plain
+HTML, CSS and JavaScript with no npm packages. Packaging and distributing the
+app (installers, a desktop shell) is a separate decision and not done here.
+
 ## Tools and boundaries
 
 | Tool | Behavior |

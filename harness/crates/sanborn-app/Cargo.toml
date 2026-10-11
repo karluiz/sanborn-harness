@@ -1,0 +1,29 @@
+[package]
+name = "sanborn-app"
+description = "Minimal local web app that drives the Sanborn harness in-process"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "sanborn-app"
+path = "src/main.rs"
+
+[dependencies]
+sanborn-cli = { path = "../sanborn-cli" }
+sanborn-core.workspace = true
+sanborn-laya.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+# Loopback HTTP only; hyper/tower are already in the tree through reqwest.
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
+getrandom = "0.2"
+
+[dev-dependencies]
+async-trait.workspace = true
+reqwest.workspace = true
+tempfile.workspace = true

@@ -316,6 +316,19 @@ impl PlannedAgent {
         )
     }
 
+    /// Executes one Rust-authored plan with the same validation, policy and Laya
+    /// gates as model plans, without any reasoning turn. Returns the plan result JSON.
+    pub async fn execute_trusted_plan(
+        &self,
+        input: Value,
+        mut on_event: impl FnMut(&PlanEvent) + Send,
+    ) -> Result<String> {
+        let plan = self.validate_plan(input)?;
+        let mut tool_calls = 0;
+        self.execute_plan(&plan, &mut tool_calls, &mut on_event)
+            .await
+    }
+
     fn validate_plan(&self, input: Value) -> Result<Plan> {
         let plan: Plan = serde_json::from_value(input).context("invalid plan JSON")?;
         if plan.steps.is_empty() || plan.steps.len() > MAX_PLAN_STEPS {

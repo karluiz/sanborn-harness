@@ -12,9 +12,9 @@ use sanborn_core::{Policy, ToolContext};
 use sanborn_laya::LocalLaya;
 use sanborn_models::AzureProvider;
 
-mod doctor;
-mod setup;
 mod terminal;
+
+use sanborn_cli::{credential, doctor, keyring_value, setup};
 
 #[derive(Subcommand)]
 enum Command {
@@ -75,38 +75,6 @@ struct Args {
     /// Disable terminal color and animation (also useful for accessibility).
     #[arg(long, global = true)]
     plain: bool,
-}
-
-async fn keyring_value(service: &str) -> Result<String> {
-    let mut command = tokio::process::Command::new("secret-tool");
-    command
-        .args(["lookup", "application", "sanborn", "service", service])
-        .kill_on_drop(true);
-    let output = tokio::time::timeout(Duration::from_secs(10), command.output())
-        .await
-        .context("system keyring lookup timed out")?
-        .context(
-            "cannot run secret-tool; use Azure environment configuration or install a Secret Service client",
-        )?;
-    if !output.status.success() {
-        bail!("system keyring lookup failed; unlock it or use Azure environment configuration");
-    }
-    let value = String::from_utf8(output.stdout).context("keyring value is not UTF-8")?;
-    if value.trim().is_empty() {
-        bail!("Sanborn keyring entry is missing; use Azure environment configuration");
-    }
-    Ok(value.trim().to_owned())
-}
-
-async fn credential() -> Result<String> {
-    match std::env::var("AZURE_OPENAI_API_KEY") {
-        Ok(key) if !key.trim().is_empty() => Ok(key),
-        Ok(_) => bail!("AZURE_OPENAI_API_KEY is empty"),
-        Err(std::env::VarError::NotUnicode(_)) => {
-            bail!("AZURE_OPENAI_API_KEY is not valid Unicode")
-        }
-        Err(std::env::VarError::NotPresent) => keyring_value("azure-inference").await,
-    }
 }
 
 async fn run(
@@ -207,23 +175,10 @@ async fn run_with_feedback(
     .await
     .context("stdin prompt deadline exceeded")??;
     let context = ToolContext::new(&args.workspace)?;
-    let saved = setup::load()?;
-    let reasoning = resolve_reasoning(
-        args.endpoint,
-        args.deployment,
-        args.api_version,
-        saved.as_ref(),
-    )
-    .await?;
-    setup::check_laya()?;
-    let key = credential().await?;
+    let azure =
+        sanborn_cli::configured_azure(args.endpoint, args.deployment, args.api_version).await?;
     let provider = Arc::new(sanborn_core::provider::BudgetedProvider::new(
-        Arc::new(AzureProvider::new(
-            &reasoning.endpoint,
-            &reasoning.deployment,
-            &reasoning.api_version,
-            &key,
-        )?),
+        Arc::new(azure),
         args.max_inference_calls as usize,
     ));
     *ledger.lock().expect("ledger slot poisoned") = Some(provider.clone());
@@ -238,29 +193,8 @@ async fn run_with_feedback(
         ..PlanConfig::default()
     };
     let laya = Arc::new(LocalLaya);
-    let mut tools = sanborn_tools::workspace_tools();
-    let mut read_tools = sanborn_core::ToolRegistry::new();
-    for tool in tools
-        .iter()
-        .filter(|tool| tool.kind() == sanborn_core::ToolKind::Read)
-    {
-        read_tools.register(tool.clone());
-    }
-    let tadpoles = sanborn_core::tadpole::Tadpoles::new(
-        provider.clone(),
-        laya.clone(),
-        read_tools,
-        args.max_tadpoles as usize,
-    )?;
-    tools.register(Arc::new(
-        tadpoles.patch_application_tool(
-            tools
-                .get("write_file")
-                .context("guarded writer missing")?
-                .clone(),
-        )?,
-    ));
-    tools.register(Arc::new(tadpoles));
+    let (tools, _) =
+        sanborn_cli::harness_tools(provider.clone(), laya.clone(), args.max_tadpoles as usize)?;
     let agent = PlannedAgent::new(provider.clone(), laya, tools, context, config);
     let started = std::time::Instant::now();
     let mut tool_calls = 0usize;
@@ -355,29 +289,6 @@ fn read_stdin(reader: impl Read) -> Result<String> {
         .read_to_end(&mut bytes)
         .context("cannot read prompt from stdin")?;
     validate_prompt(String::from_utf8(bytes).context("stdin prompt is not UTF-8")?)
-}
-
-async fn resolve_reasoning(
-    endpoint: Option<String>,
-    deployment: Option<String>,
-    api_version: Option<String>,
-    saved: Option<&setup::Config>,
-) -> Result<setup::Reasoning> {
-    let endpoint = match endpoint.or_else(|| saved.map(|c| c.reasoning.endpoint.clone())) {
-        Some(value) => value,
-        None => keyring_value("azure-inference-endpoint")
-            .await
-            .context("run sb init, or set AZURE_OPENAI_ENDPOINT or --endpoint")?,
-    };
-    Ok(setup::Reasoning {
-        endpoint,
-        deployment: deployment
-            .or_else(|| saved.map(|c| c.reasoning.deployment.clone()))
-            .unwrap_or_else(|| setup::DEFAULT_DEPLOYMENT.into()),
-        api_version: api_version
-            .or_else(|| saved.map(|c| c.reasoning.api_version.clone()))
-            .unwrap_or_else(|| setup::DEFAULT_API_VERSION.into()),
-    })
 }
 
 fn write_json(value: &impl serde::Serialize) -> Result<()> {

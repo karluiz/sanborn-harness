@@ -183,6 +183,55 @@ fn contract_result(messages: &[crate::Message], specialty: Specialty) -> Result<
     )
 }
 
+/// Structured parent-visible croaks; metadata events deliberately omit their contents.
+pub fn croaks_from_messages(messages: &[crate::Message]) -> Vec<Value> {
+    let mut croaks = Vec::new();
+    for block in messages.iter().flat_map(|message| &message.content) {
+        let ContentBlock::ToolResult {
+            content,
+            is_error: false,
+            ..
+        } = block
+        else {
+            continue;
+        };
+        let Ok(plan) = serde_json::from_str::<Value>(content) else {
+            continue;
+        };
+        let Some(results) = plan["results"].as_array() else {
+            continue;
+        };
+        for result in results {
+            if result["tool"] != "summon_tadpoles"
+                || result["is_error"] != false
+                || result["truncated"] != false
+            {
+                continue;
+            }
+            let Some(output) = result["output"].as_str() else {
+                continue;
+            };
+            let Ok(group) = serde_json::from_str::<Value>(output) else {
+                continue;
+            };
+            if let Some(items) = group["croaks"].as_array() {
+                croaks.extend(items.iter().cloned());
+            }
+        }
+    }
+    croaks
+}
+
+/// A coder proposal as observed by Rust; `ready` means its contract passed Laya gates.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ProposalView {
+    pub proposal_id: String,
+    pub path: String,
+    pub expected_content: String,
+    pub content: String,
+    pub ready: bool,
+}
+
 pub struct Tadpoles {
     provider: Arc<dyn Provider>,
     laya: Arc<dyn DecisionEngine>,
@@ -217,6 +266,24 @@ impl Tadpoles {
             deadline: Duration::from_secs(60),
             proposals: Arc::default(),
         })
+    }
+
+    /// Read-only snapshot of unconsumed run-local proposals for inspection.
+    /// Application still goes only through `apply_tadpole_patch`.
+    pub fn proposals(&self, ctx: &ToolContext) -> Vec<ProposalView> {
+        let proposals = self.proposals.0.lock().expect("proposals poisoned");
+        let mut views: Vec<_> = proposals
+            .iter()
+            .map(|(id, proposal)| ProposalView {
+                proposal_id: id.clone(),
+                path: ctx.display(&proposal.path),
+                expected_content: proposal.expected.clone(),
+                content: proposal.content.clone(),
+                ready: proposal.ready,
+            })
+            .collect();
+        views.sort_by(|a, b| a.proposal_id.cmp(&b.proposal_id));
+        views
     }
 
     pub fn patch_application_tool(

@@ -41,6 +41,23 @@ Laya's first implementation uses deterministic evidence guards, not a learned
 decision model. Backend embedding, semantic confidence calibration, shell
 isolation and comparative speed benchmarks remain unfinished.
 
+### Local app
+
+`sanborn-app` is a minimal loopback web page over the same in-process harness.
+You select a workspace explicitly, then submit one task. You can follow Laya
+decisions, tadpoles and shared usage, and cancel the run. Runs are always
+read-only. A coder proposal is shown as a diff and is written only after you
+grant permission for that single proposal. Rust then applies it with
+`apply_tadpole_patch` and verifies it with an exact reread. Credentials never
+reach the page.
+
+```sh
+sh harness/examples/app/run.sh   # offline synthetic demo on a disposable fixture
+```
+
+See [`harness/README.md`](harness/README.md#local-app-sanborn-app) for the
+trust boundary. The page binds 127.0.0.1 only; never expose it publicly.
+
 ## Development
 
 Requires Node.js 20.19+ or 22.12+.
