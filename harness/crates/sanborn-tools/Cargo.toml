@@ -17,4 +17,5 @@ tempfile.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
+sanborn-laya.workspace = true
 tokio.workspace = true

@@ -1,6 +1,6 @@
 //! Read-only, non-recursive workers. Every tadpole runs the required Laya loop.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -44,6 +44,7 @@ enum Specialty {
     General,
     RepositoryScout,
     TestAnalyst,
+    Coder,
 }
 
 impl Specialty {
@@ -52,6 +53,7 @@ impl Specialty {
             Self::General => "general",
             Self::RepositoryScout => "repository_scout",
             Self::TestAnalyst => "test_analyst",
+            Self::Coder => "coder",
         }
     }
     fn baseline(self, scope: &str) -> Option<Value> {
@@ -84,6 +86,12 @@ impl Specialty {
                 evidence-backed gaps. The search is a heuristic, not a universal test detector. Empty matches mean \
                 no matching signals, not no tests. Never claim executed tests, passing tests, measured coverage, or \
                 exhaustive coverage. Missing, skipped or limited baseline evidence makes the contract incomplete.",
+            Self::Coder => "Coder contract v1: Rust supplies an inventory before reasoning. Read the existing target \
+                using read_file, then submit one propose_patch step with exact expected_content and replacement content, \
+                guarded by patch_proposal. The tool does not write. Both old and new content are bounded to 8000 bytes. \
+                No new files, deletions, multi-file edits or execution in v1. Report rationale and limitations. \
+                The parent alone can apply the saved proposal through apply_tadpole_patch and verify the result. \
+                Never claim a proposal was applied or tests passed.",
         }
     }
 }
@@ -91,6 +99,7 @@ impl Specialty {
 struct ScopedRead {
     inner: Arc<dyn Tool>,
     scope: std::path::PathBuf,
+    observed: Arc<Mutex<HashMap<std::path::PathBuf, String>>>,
 }
 
 #[async_trait]
@@ -109,7 +118,14 @@ impl Tool for ScopedRead {
         if !resolved.starts_with(&self.scope) {
             bail!("specialist contract denies path outside its scope");
         }
-        self.inner.call(input, ctx).await
+        let output = self.inner.call(input, ctx).await?;
+        if self.inner.spec().name == "read_file" {
+            self.observed
+                .lock()
+                .expect("coder observations poisoned")
+                .insert(resolved, output.clone());
+        }
+        Ok(output)
     }
 }
 
@@ -174,6 +190,7 @@ pub struct Tadpoles {
     max_total: usize,
     summoned: Mutex<HashSet<String>>,
     deadline: Duration,
+    proposals: Arc<crate::patch::Proposals>,
 }
 
 impl Tadpoles {
@@ -198,6 +215,20 @@ impl Tadpoles {
             max_total,
             summoned: Mutex::new(HashSet::new()),
             deadline: Duration::from_secs(60),
+            proposals: Arc::default(),
+        })
+    }
+
+    pub fn patch_application_tool(
+        &self,
+        writer: Arc<dyn Tool>,
+    ) -> Result<crate::patch::ApplyPatch> {
+        if writer.kind() != ToolKind::Write || writer.spec().name != "write_file" {
+            bail!("coder application requires the guarded write_file tool");
+        }
+        Ok(crate::patch::ApplyPatch {
+            proposals: self.proposals.clone(),
+            writer,
         })
     }
 
@@ -294,9 +325,33 @@ impl Tadpoles {
                 Ok(outcome) => {
                     let contract = if objective.specialty == Specialty::General { Ok(None) }
                         else { contract_result(&outcome.messages, objective.specialty).map(Some) };
-                    let contract = match contract { Ok(contract) => contract, Err(error) => return json!({
+                    let mut contract = match contract { Ok(contract) => contract, Err(error) => return json!({
                         "id":id, "status":"blocked", "reason":format!("{error:#}"), "acceptance":"not_certified"}) };
-                    let complete = contract.as_ref().is_none_or(|c| c["baseline_complete"] == true);
+                    let mut complete = contract.as_ref().is_none_or(|c| c["baseline_complete"] == true);
+                    let mut patch = None;
+                    if objective.specialty == Specialty::Coder {
+                        for block in outcome.messages.iter().flat_map(|m| &m.content) {
+                            let ContentBlock::ToolResult { content, is_error:false, .. } = block else { continue };
+                            let Ok(plan) = serde_json::from_str::<Value>(content) else { continue };
+                            if plan["plan_complete"] != true { continue; }
+                            if let Some(results) = plan["results"].as_array() {
+                                for result in results {
+                                    if result["tool"] == "propose_patch" && result["is_error"] == false && result["truncated"] == false {
+                                        patch = result["output"].as_str().and_then(|text| serde_json::from_str::<Value>(text).ok());
+                                    }
+                                }
+                            }
+                        }
+                        complete &= patch.is_some();
+                        if let Some(contract) = contract.as_mut() {
+                            contract["proposal_complete"] = json!(patch.is_some());
+                        }
+                        let proposal_id = format!("{id}-patch");
+                        let mut proposals = self.proposals.0.lock().expect("proposals poisoned");
+                        if let Some(proposal) = proposals.get_mut(&proposal_id) {
+                            proposal.ready = complete;
+                        }
+                    }
                     let evidence: Vec<_> = outcome.messages.iter().flat_map(|m| &m.content)
                         .filter_map(|block| match block {
                             ContentBlock::ToolResult { content, is_error, .. } =>
@@ -305,7 +360,8 @@ impl Tadpoles {
                         }).take(4).collect();
                     json!({"id": id, "status": if complete { "returned" } else { "blocked" }, "acceptance": "not_certified",
                         "specialty": objective.specialty, "contract": contract,
-                        "reason": if complete { None } else { Some("Required contract baseline is incomplete; inspect the evidence and rerun a narrower scope.") },
+                        "patch":patch,
+                        "reason": if complete { None } else { Some("Required contract baseline or coder proposal is incomplete; inspect evidence and summon a fresh worker.") },
                         "laya_backend": self.laya.name(),
                         "report": truncate(outcome.final_text, 1000), "evidence": evidence,
                         "turns": outcome.turns, "usage": outcome.usage})
@@ -346,6 +402,10 @@ impl Tadpoles {
         }
         let output = serde_json::to_string(&result)?;
         if output.len() > crate::agent::MAX_TOOL_OUTPUT_BYTES {
+            let mut proposals = self.proposals.0.lock().expect("proposals poisoned");
+            for objective in &summon.tadpoles {
+                proposals.remove(&format!("{}-patch", objective.id));
+            }
             bail!("combined croaks exceed the output budget; summon fewer workers");
         }
         Ok(output)
@@ -360,6 +420,7 @@ impl Tadpoles {
             bail!("specialist scope must be an accessible workspace directory");
         }
         let mut tools = ToolRegistry::new();
+        let observed = Arc::new(Mutex::new(HashMap::new()));
         for name in ["list_files", "read_file", "search_files"] {
             let inner = self
                 .tools
@@ -368,6 +429,20 @@ impl Tadpoles {
             tools.register(Arc::new(ScopedRead {
                 inner: inner.clone(),
                 scope: scope.clone(),
+                observed: observed.clone(),
+            }));
+        }
+        if objective.specialty == Specialty::Coder {
+            tools.register(Arc::new(crate::patch::ProposePatch {
+                id: objective.id.clone(),
+                scope,
+                observed,
+                proposals: self.proposals.clone(),
+                reader: self
+                    .tools
+                    .get("read_file")
+                    .context("coder requires read_file")?
+                    .clone(),
             }));
         }
         Ok(tools)
@@ -378,14 +453,14 @@ impl Tadpoles {
 impl Tool for Tadpoles {
     fn spec(&self) -> ToolSpec {
         ToolSpec { name: "summon_tadpoles".into(),
-            description: format!("Summon 1 to 3 independent read-only workers. Optional specialty: repository_scout (Rust-seeded inventory) or test_analyst (inventory plus heuristic test signals); scope is a workspace directory. Laya gates their contracted steps before reasoning; incomplete baseline produces a blocked croak. Default general preserves ordinary workers. Each uses Laya, at most 4 reasoning turns, 8 tools and 60 seconds. Run limit: {} workers. Shared inference budget; no delegation or writes. Parent must verify evidence.", self.max_total),
+            description: format!("Summon 1 to 3 independent read-only workers. Optional specialty: repository_scout (inventory), test_analyst (inventory/test signals), coder (inventory/read existing file/propose one bounded replacement); scope is a workspace directory. Laya gates steps and evidence; incomplete contracts produce blocked croaks. Coder returns patch and proposal ID; only parent apply_tadpole_patch can write with permission. Default general preserves ordinary workers. Each uses Laya, at most 4 reasoning turns, 8 tools and 60 seconds. Run limit: {} workers. Shared inference budget; no recursion, writes or execution in children. Parent must verify evidence.", self.max_total),
             input_schema: json!({"type": "object", "additionalProperties": false, "required": ["tadpoles"],
                 "properties": {"tadpoles": {"type": "array", "minItems": 1, "maxItems": 3,
                     "items": {"type": "object", "additionalProperties": false,
                         "required": ["id", "objective"], "properties": {
                             "id": {"type": "string", "minLength": 1, "maxLength": 48},
                             "objective": {"type": "string", "minLength": 1, "maxLength": 4096}
-                            ,"specialty": {"type":"string","enum":["general","repository_scout","test_analyst"]},
+                            ,"specialty": {"type":"string","enum":["general","repository_scout","test_analyst","coder"]},
                             "scope": {"type":"string","minLength":1,"maxLength":4096,"description":"Specialist directory boundary; defaults to workspace root."}
                         }}}}}) }
     }

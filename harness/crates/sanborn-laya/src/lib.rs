@@ -10,6 +10,7 @@ pub enum EvidenceGuard {
     TextEquals { value: String },
     TextContains { value: String },
     Discovery { shape: DiscoveryShape },
+    PatchProposal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,6 +54,25 @@ impl EvidenceGuard {
             Self::TextEquals { value } => evidence.output == value,
             Self::TextContains { value } if !value.is_empty() => evidence.output.contains(value),
             Self::TextContains { .. } => return GuardCheck::Insufficient,
+            Self::PatchProposal => {
+                let Ok(value) = serde_json::from_str::<serde_json::Value>(evidence.output) else {
+                    return GuardCheck::Failed;
+                };
+                value["version"] == 1
+                    && value["validated"] == true
+                    && value["application"] == "parent_only"
+                    && value["proposal_id"]
+                        .as_str()
+                        .is_some_and(|id| !id.is_empty())
+                    && value["path"].as_str().is_some_and(|path| !path.is_empty())
+                    && value["content"].as_str().is_some_and(|text| {
+                        text.len() <= 8_000
+                            && value["replacement_bytes"].as_u64() == Some(text.len() as u64)
+                    })
+                    && value["expected_bytes"]
+                        .as_u64()
+                        .is_some_and(|bytes| bytes <= 8_000)
+            }
             Self::Discovery { shape } => {
                 let Ok(value) = serde_json::from_str::<serde_json::Value>(evidence.output) else {
                     return GuardCheck::Failed;
@@ -272,4 +292,42 @@ mod tests {
             }
         }
     }
+}
+#[test]
+fn patch_evidence_must_be_complete_and_typed() {
+    let guard = EvidenceGuard::PatchProposal;
+    let output = serde_json::json!({"version":1,"validated":true,"application":"parent_only",
+            "proposal_id":"code-patch","path":"src/lib.rs","content":"new\n",
+            "expected_bytes":4,"replacement_bytes":4})
+    .to_string();
+    assert_eq!(
+        guard.check(&Evidence {
+            is_error: false,
+            output: &output,
+            truncated: false
+        }),
+        GuardCheck::Passed
+    );
+    for (text, truncated, expected) in [
+        (output.as_str(), true, GuardCheck::Insufficient),
+        ("confident proposal", false, GuardCheck::Failed),
+        ("{}", false, GuardCheck::Failed),
+    ] {
+        assert_eq!(
+            guard.check(&Evidence {
+                is_error: false,
+                output: text,
+                truncated
+            }),
+            expected
+        );
+    }
+    assert_eq!(
+        guard.check(&Evidence {
+            is_error: true,
+            output: &output,
+            truncated: false
+        }),
+        GuardCheck::Failed
+    );
 }

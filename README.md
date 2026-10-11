@@ -26,6 +26,11 @@ Specialized `repository_scout` and `test_analyst` tadpoles use Rust-authored
 discovery baselines before child reasoning, required typed Laya evidence gates
 and enforced directory scope. Their contracts describe observed evidence,
 not certified architecture or measured test coverage.
+`coder` tadpoles inspect scoped existing files and propose one bounded replacement.
+Laya gates proposal evidence; only the parent can apply the saved patch through
+`apply_tadpole_patch` with `--allow-write` and an exact old-content check.
+V1 supports existing-file edits up to 8,000 bytes per old/new body, not creation,
+deletion, multi-file changes or test execution.
 `sb` uses Azure reasoning to produce bounded plans and a required local Laya
 decision layer to evaluate scheduling and evidence. It is read-only by default;
 `--allow-write` enables guarded file writes. Credentials and the endpoint come

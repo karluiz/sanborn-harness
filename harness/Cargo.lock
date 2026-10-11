@@ -1061,6 +1061,7 @@ dependencies = [
  "ignore",
  "regex",
  "sanborn-core",
+ "sanborn-laya",
  "serde",
  "serde_json",
  "tempfile",

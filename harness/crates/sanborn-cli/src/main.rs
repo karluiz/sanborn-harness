@@ -246,12 +246,21 @@ async fn run_with_feedback(
     {
         read_tools.register(tool.clone());
     }
-    tools.register(Arc::new(sanborn_core::tadpole::Tadpoles::new(
+    let tadpoles = sanborn_core::tadpole::Tadpoles::new(
         provider.clone(),
         laya.clone(),
         read_tools,
         args.max_tadpoles as usize,
-    )?));
+    )?;
+    tools.register(Arc::new(
+        tadpoles.patch_application_tool(
+            tools
+                .get("write_file")
+                .context("guarded writer missing")?
+                .clone(),
+        )?,
+    ));
+    tools.register(Arc::new(tadpoles));
     let agent = PlannedAgent::new(provider.clone(), laya, tools, context, config);
     let started = std::time::Instant::now();
     let mut tool_calls = 0usize;

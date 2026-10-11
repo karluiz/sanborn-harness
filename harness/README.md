@@ -235,7 +235,7 @@ This demonstrates bounded Laya-guided delegation, not a measured speedup.
 
 `summon_tadpoles` accepts optional `specialty` and `scope` fields. Omit
 `specialty` (or use `general`) to preserve ordinary workers. Built-in v1
-contracts are `repository_scout` and `test_analyst`; unknown names fail.
+contracts are `repository_scout`, `test_analyst` and `coder`; unknown names fail.
 The parent chooses a contract explicitly; there is no learned role router.
 
 ```json
@@ -251,7 +251,8 @@ The parent chooses a contract explicitly; there is no learned role router.
 
 `scope` defaults to the workspace root and must resolve to an existing
 workspace directory. Specialist read/list/search tools enforce that boundary;
-writes, commands, recursive delegation and extra tools are excluded.
+writes, commands and recursive delegation are excluded. Only coders additionally
+receive the non-mutating `propose_patch` tool.
 
 The scout has a Rust-authored `list_files` baseline. The analyst has a
 Rust-authored `list_files` plus `search_files` baseline with fixed heuristic
@@ -284,6 +285,49 @@ model-authored and the parent must verify it. Metadata adds a child
 Offline fixtures demonstrate both contracts returning after one reasoning call
 per child; no representative comparative performance result is established.
 
+### Coder contract: propose locally, apply through the parent
+
+`coder` starts with the same Rust-authored inventory and required Laya gates.
+It reads an existing file inside its scope, then submits a `propose_patch` step
+guarded by `{"kind":"patch_proposal"}`. Rust requires exact contents from that
+worker's successful `read_file` evidence, rechecks the file, and rejects no-op,
+out-of-scope, credential-like or oversized proposals.
+
+V1 allows **one existing-file replacement per worker**, with both old and new
+contents bounded to 8,000 bytes. No file creation, deletion, multi-file patch,
+shell command or test execution is available to the coder. It shares the usual
+four-turn/eight-tool budgets. Large changes must be split into narrow objectives;
+this is not an arbitrary unified-diff parser.
+
+The croak returns `patch` with `proposal_id`, path, replacement content, byte
+counts and structural validation, plus `contract.proposal_complete`. A patch
+becomes applicable only after the fixed baseline and proposal plan both pass
+their Rust checks and Laya evidence gates. No proposal or an interrupted plan
+makes the coder blocked, regardless of its prose. This does not certify code
+correctness, test results or objective acceptance.
+
+The parent can inspect the croak and submit `apply_tadpole_patch` with only
+`{"proposal_id":"code-patch"}`. It uses the run-local saved proposal, not content
+reconstructed from prose, and delegates to existing guarded `write_file`.
+`--allow-write` is required. Unknown, unaccepted, cross-workspace and consumed
+IDs fail. The exact old contents must still match; concurrent changes produce
+an explicit failure. One application attempt consumes the proposal, even on
+failure; inspect the error and summon a fresh worker rather than retrying blindly.
+Read the target afterward to verify. Permission checks are not an OS sandbox
+or a race-proof filesystem lock.
+
+```sh
+sb --allow-write -p "Summon one coder id=code scoped to src to fix the \
+existing greeting function. Inspect its proposal, apply with \
+apply_tadpole_patch, then read the changed file to verify. Do not claim tests ran."
+```
+
+Offline fixtures cover read-before-propose, bounds, wrong expected contents,
+scope, protected paths, Laya rejection, absent proposals, write policy, stale
+files and duplicate application. An opt-in synthetic Azure fixture exercises
+coder proposal → parent application → exact reread; model choices can still fail,
+so the fixture checks the actual file rather than accepting final prose.
+
 ## Tools and boundaries
 
 | Tool | Behavior |
@@ -293,6 +337,8 @@ per child; no representative comparative performance result is established.
 | `search_files` | Bounded Rust-regex search; binary/oversized skips and limits reported |
 | `write_file` | Opt-in atomic create or compare-before-replace; existing parent required |
 | `summon_tadpoles` | Bounded read-only Laya workers; structured noncertified croaks |
+| `propose_patch` | Coder-only, non-mutating existing-file replacement proposal |
+| `apply_tadpole_patch` | Parent-only, opt-in application by saved proposal ID |
 
 Writes require `--allow-write`. For creation, `expected_content` must be null.
 For replacement, it must exactly match the current contents. Replacement keeps

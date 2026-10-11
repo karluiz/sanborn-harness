@@ -196,6 +196,7 @@ if laya.recommends_this_step()
             <tr><th scope="row"><code>list_files</code></th><td>List visible, non-ignored entries</td><td>At most 2,000 entries, depth 20; symlinks not followed</td></tr>
             <tr><th scope="row"><code>search_files</code></th><td>Search a Rust regex</td><td>Bounded traversal and 4 MB scan budget; binary, oversized and limited results reported</td></tr>
             <tr><th scope="row"><code>write_file</code></th><td>Atomic create or guarded replacement</td><td><code>--allow-write</code>; existing parent; at most 128,000 bytes</td></tr>
+            <tr><th scope="row"><code>apply_tadpole_patch</code></th><td>Parent applies a saved coder proposal</td><td><code>--allow-write</code>; accepted contract; exact old contents must still match</td></tr>
           </tbody></table></div>
           <p>Creation requires <code>expected_content: null</code>. Replacement requires the exact current contents and preserves existing permissions. Stale contents produce an explicit failure rather than overwriting blindly. There is no shell, delete or arbitrary command tool.</p>
           <details><summary>Run budgets, cancellation and filesystem limits</summary>
@@ -269,10 +270,11 @@ if laya.recommends_this_step()
           </details>
           <p>Small questions, explicit boundaries, evidence brought back. Tadpoles demonstrate bounded Laya-guided delegation—not a measured speedup or independent task certification.</p>
           <h3>A specialty is a contract.<br>Not a costume for a prompt.</h3>
-          <p>Two built-in contracts start with known work in Rust: <code>repository_scout</code> and <code>test_analyst</code>. The parent chooses the specialty explicitly. Each receives a fixed discovery plan before its first reasoning request; Laya gates every scheduled step and checks typed evidence. Rust independently validates the plan, permissions and guards.</p>
+          <p>Three built-in contracts start with known work in Rust: <code>repository_scout</code>, <code>test_analyst</code> and <code>coder</code>. The parent chooses the specialty explicitly. Each receives a fixed discovery plan before its first reasoning request; Laya gates every scheduled step and checks typed evidence. Rust independently validates the plan, permissions and guards.</p>
           <div class="table-scroll"><table><caption>Specialist contracts v1 · the baseline runs before reasoning</caption><thead><tr><th scope="col">Specialty</th><th scope="col">Rust-authored baseline</th><th scope="col">Reasoning’s job</th></tr></thead><tbody>
             <tr><th scope="row"><code>repository_scout</code></th><td>List the visible file structure within its directory scope.</td><td>Interpret structure, inspect relevant manifests/source and cite paths. Separate observation from inference.</td></tr>
             <tr><th scope="row"><code>test_analyst</code></th><td>List files and search fixed heuristic test signals; independent reads can run together.</td><td>Inspect relevant tests and report evidence-backed findings. No execution or measured coverage claim.</td></tr>
+            <tr><th scope="row"><code>coder</code></th><td>List scoped files; require observed file contents before proposing.</td><td>Design one bounded replacement. Return a patch; only the parent can apply it.</td></tr>
           </tbody></table></div>
           <figure class="command-block"><figcaption>ILLUSTRATIVE SUMMON INPUT · EXISTING, APPROVED DIRECTORIES ONLY</figcaption><pre><code class="language-json">{
   "tadpoles": [
@@ -290,10 +292,23 @@ if laya.recommends_this_step()
     }
   ]
 }</code></pre></figure>
-          <p><code>scope</code> is an enforced directory boundary, not a suggestion in a prompt. Specialists can only list, search or read inside it. Unknown specialties are rejected; omitting the specialty preserves the ordinary general worker. The baseline consumes the existing child tool budget and uses the shared inference configuration.</p>
+          <p><code>scope</code> is an enforced directory boundary, not a suggestion in a prompt. Specialists can only list, search or read inside it; coders additionally propose without writing. Unknown specialties are rejected; omitting the specialty preserves the ordinary general worker. The baseline consumes the existing child tool budget and uses the shared inference configuration.</p>
           <p>The new <code>discovery</code> evidence guard checks structured file-list or search results. Limited or truncated evidence, and skipped search files, produce insufficient evidence; malformed results fail. Reasoning sees those outcomes and may interpret or replan, but final prose cannot turn an incomplete fixed baseline into a completed contract. Rerun with a narrower scope when needed.</p>
           <p>Specialist croaks carry a versioned contract, <code>baseline_complete</code> and bounded observed facts with counts and samples. An incomplete baseline makes the croak blocked while retaining the model’s report. Completeness applies only to bounded visible discovery, not task acceptance. The analyst’s test markers are heuristic: no matches does not mean no tests, and no report measures coverage or proves tests passed.</p>
           <p>This is the distinction we can demonstrate today: known first steps execute through Rust and Laya without a model planning turn; reasoning handles what still needs interpretation. Offline fixtures return both contracts after one reasoning call per child. That is mechanism evidence, not a representative speed benchmark or learned specialist routing.</p>
+          <h3>Coders bring back a patch.<br><em>Not permission to write.</em></h3>
+          <p>A coding Tadpole can now inspect an existing file and propose a replacement. Its workspace remains read-only. The parent inspects the croak, decides whether to apply, and verifies the result. Laya gates the evidence at each boundary; Rust retains execution authority.</p>
+          <div class="tadpole-lifecycle">
+            <article><h3>Inspect</h3><p>Rust runs the scoped inventory before reasoning. The coder reads the target through <code>read_file</code>; the proposal must carry those exact observed contents, not an invented base.</p></article>
+            <article><h3>Propose</h3><p><code>propose_patch</code> checks scope, observed contents, current contents and size without writing. The required <code>patch_proposal</code> Laya guard checks typed evidence. Both baseline and proposal must pass before application becomes available.</p></article>
+            <article><h3>Apply &amp; verify</h3><p>The parent uses <code>apply_tadpole_patch</code> with the saved proposal ID. <code>--allow-write</code> and an exact old-content match are required. Stale files fail explicitly. The parent rereads the file; application is not proof of correctness or passing tests.</p></article>
+          </div>
+          <figure class="command-block"><figcaption>CODER CONTRACT · THE PARENT OWNS APPLICATION</figcaption><pre><code class="language-bash">sb --allow-write -p "Summon one coder id=code scoped to src
+to fix the existing greeting function. Inspect its proposal,
+apply with apply_tadpole_patch, then read the changed file
+to verify. Do not claim tests ran."</code></pre></figure>
+          <p>V1 is deliberately narrow: one existing-file replacement per worker, at most 8,000 bytes each for old and new contents. No new files, deletion, multi-file patches or command execution. A croak carries the replacement, proposal ID, byte counts and <code>contract.proposal_complete</code>; incomplete contracts remain blocked even if the report sounds confident.</p>
+          <p>Proposals live only within the run. An application attempt consumes its ID, including failures; inspect the error and summon a fresh worker. Parallel coders editing the same file do not merge automatically: after one applies, another based on stale contents must fail. These are optimistic content and path checks, not filesystem locking or an OS sandbox.</p>
         </section>
         <section id="terminal" class="chapter">
           <h2>Feedback for<br><em>terminal people.</em></h2>
