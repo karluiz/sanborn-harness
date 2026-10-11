@@ -14,6 +14,7 @@ pub enum ToolKind {
     Read,
     Write,
     Execute,
+    Delegate,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,7 +40,7 @@ impl Policy {
 
     pub fn permits(&self, kind: ToolKind) -> bool {
         match kind {
-            ToolKind::Read => true,
+            ToolKind::Read | ToolKind::Delegate => true,
             ToolKind::Write => self.allow_write,
             ToolKind::Execute => self.allow_execute,
         }
@@ -57,6 +58,14 @@ pub trait Tool: Send + Sync {
     fn spec(&self) -> ToolSpec;
     fn kind(&self) -> ToolKind;
     async fn call(&self, input: Value, ctx: &ToolContext) -> Result<String>;
+    async fn call_with_events(
+        &self,
+        input: Value,
+        ctx: &ToolContext,
+        _events: tokio::sync::mpsc::UnboundedSender<crate::plan::PlanEvent>,
+    ) -> Result<String> {
+        self.call(input, ctx).await
+    }
 }
 
 #[derive(Default, Clone)]

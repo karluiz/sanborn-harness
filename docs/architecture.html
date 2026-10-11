@@ -4868,6 +4868,51 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       svg [data-node-id], svg [data-edge-from], svg [data-detail], svg [data-detail-anchor], svg [data-legend-hit], svg { transition: none !important; }
     }
   </style>
+  <style id="sanborn-architecture-theme">
+    /* Sanborn's field-manual palette; optional Archify presets stay available. */
+    html[data-preset="classic"][data-theme="dark"] {
+      --bg:#15251c; --grid:#344935; --canvas-dot:#344935; --text:#eaece3;
+      --text-muted:#c1ceae; --text-dim:#a8b99a; --text-faint:#a8b99a;
+      --panel:#15251c; --panel-border:#536c48; --mask:#1f3021;
+      --lane-fill:#1f3021; --lane-stroke:#829568; --arrow:#a8b99a; --arrow-emphasis:#bad18f;
+      --frontend-fill:#263c32; --frontend-stroke:#8fd2c3;
+      --backend-fill:#263723; --backend-stroke:#bad18f;
+      --database-fill:#34392b; --database-stroke:#d1c393;
+      --security-fill:#3c3126; --security-stroke:#e3c392;
+      --external-fill:#25362c; --external-stroke:#a8b99a;
+      --toolbar-bg:#1f3021; --toolbar-border:#536c48; --toolbar-text:#d9e4cc;
+      --toolbar-hover:#35452c; --toolbar-menu-bg:#1f3021;
+    }
+    html[data-preset="classic"][data-theme="light"] {
+      --bg:#eaece3; --grid:#c6cebc; --canvas-dot:#c6cebc; --text:#15251c;
+      --text-muted:#53634e; --text-dim:#53634e; --text-faint:#53634e;
+      --panel:#eaece3; --panel-border:#c6cebc; --mask:#e1e7d8;
+      --lane-fill:#e1e7d8; --lane-stroke:#829568; --arrow:#536c48; --arrow-emphasis:#536c48;
+      --frontend-fill:#d5e5db; --frontend-stroke:#3b6e60;
+      --backend-fill:#dbe3cb; --backend-stroke:#536c48;
+      --database-fill:#e5e2cf; --database-stroke:#72633e;
+      --security-fill:#e8decc; --security-stroke:#856535;
+      --external-fill:#e1e7d8; --external-stroke:#53634e;
+      --toolbar-bg:#e1e7d8; --toolbar-border:#a8b99a; --toolbar-text:#15251c;
+      --toolbar-hover:#dbe3cb; --toolbar-menu-bg:#eaece3;
+    }
+    html[data-preset="classic"] body{font-family:'DM Sans',system-ui,sans-serif}
+    html[data-preset="classic"] .diagram-container{border-radius:0;box-shadow:none}
+    html[data-preset="classic"] h1{font-family:Manrope,system-ui,sans-serif;font-weight:500;letter-spacing:-.025em}
+    html[data-preset="classic"] .pulse-dot{background:var(--backend-stroke);box-shadow:none}
+    html[data-preset="classic"] .diagram-container>svg text{font-family:'DM Sans',system-ui,sans-serif}
+    html[data-preset="classic"] .diagram-container>svg text.t-primary{font-weight:600}
+    html[data-preset="classic"] .diagram-container>svg text[data-node-label]{font-size:15px}
+    html[data-preset="classic"] .diagram-container>svg [data-node-id] text[data-detail]{font-size:10.5px}
+    html[data-preset="classic"] .diagram-container>svg [data-node-id]>rect:not(.c-mask){filter:none}
+    html[data-embed="true"][data-preset="classic"] .diagram-container{background:var(--bg);padding:0}
+    html[data-embed="true"] .sanborn-return,html[data-present="true"] .sanborn-return{display:none}
+    .sanborn-return{display:inline-flex;align-items:center;gap:14px;margin-bottom:24px;color:var(--text-muted);font-size:13px;text-decoration:none;min-height:44px}
+    .sanborn-return:hover{color:var(--text)}
+    .sanborn-return:focus-visible{outline:3px solid var(--security-stroke);outline-offset:4px}
+    @media print{.sanborn-return{display:none}}
+  </style>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&amp;family=Manrope:wght@400;500;600&amp;display=swap">
 </head>
 <body>
   <!-- Toolbar: theme, live visual style, trace motion, presentation stage, and export.
@@ -4971,6 +5016,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
   </div>
 
   <div class="container">
+    <a class="sanborn-return" href="./#anatomy"><span aria-hidden="true">←</span> Sanborn / Field manual</a>
     <!-- Header -->
     <div class="header">
       <div class="header-row"

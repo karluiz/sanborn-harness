@@ -84,6 +84,76 @@ keys into command arguments, shell history, `.env` files in this repository,
 documentation, or commits. Account-specific infrastructure is not hardcoded.
 HTTPS is required, redirects are disabled, and HTTP error bodies are not logged.
 
+## Diagnostics and automation
+
+```sh
+sb doctor
+sb doctor --json -w /path/to/approved-workspace
+cat task.txt | sb -p -
+sb -p - --json --json-events < task.txt
+```
+
+`sb doctor` checks workspace accessibility, saved configuration, local credential
+availability, effective inference configuration, and required Laya readiness.
+It uses the same configuration precedence as task execution and accepts
+`--endpoint`, `--deployment`, `--api-version`, and `-w`. It makes no inference
+request, runs no workspace tool, and changes no configuration. Missing saved
+configuration is acceptable when environment/keyring setup supplies the values;
+malformed saved configuration is not silently ignored.
+
+Doctor reports every check, with exit zero only when all local checks pass.
+Its versioned JSON report has `schema_version`, `ready`, `network_checked: false`
+and `checks` (`name`, `ready`, `detail`). Neither API keys nor resolved endpoint
+values are printed. Local readiness does not establish authentication, model
+availability, tool compatibility, data-egress approval or OS isolation.
+
+`-p -` reads a prompt from piped stdin or file redirection. It preserves line
+breaks and requires nonempty UTF-8 without NUL bytes, at most 128,000 bytes.
+The same validation applies to literal prompts. Interactive terminal stdin is
+rejected instead of starting an indefinite input session. Stdin acquisition
+has its own deadline using `--timeout`; task execution then has its existing
+execution deadline. One detached reader thread exists only for stdin mode,
+so an open pipe does not prevent process exit after timeout or cancellation.
+This is separate from the thread-free terminal animation.
+
+`--json` writes a single final JSON object to stdout and disables terminal
+animation/color. Combine it with `--json-events` for metadata events on stderr.
+Success fields:
+
+```json
+{
+  "schema_version": 1,
+  "status": "completed",
+  "acceptance": "not_certified",
+  "final_text": "...",
+  "turns": 2,
+  "tool_calls": 4,
+  "inference_calls": 2,
+  "usage_complete": true,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": 0,
+    "cache_write_tokens": 0
+  },
+  "duration_ms": 0,
+  "stop_reason": "end_turn",
+  "laya_backend": "local-evidence"
+}
+```
+
+Values above are illustrative. `duration_ms` covers the agent execution,
+not stdin, setup, or process startup. Runtime failures exit nonzero and emit
+`schema_version`, `status: "error"`, `acceptance: "not_certified"`, `error`, and
+a note that completed writes are not rolled back. Error results do not include
+tool counts. They include observed shared inference calls and usage once the
+provider is initialized, or null beforehand. `usage_complete` is false if any
+reserved request failed or was cancelled; charges for those requests may still
+exist at the provider. Argument-parsing errors retain Clap's stderr output;
+they do not enter the JSON runtime contract. Error diagnostics also go to stderr
+and are not JSON event records. Final text may contain workspace content even
+when event traces omit it.
+
 ## Execution architecture
 
 ```text
@@ -117,6 +187,329 @@ natural-language acceptance criteria.
 The original conventional `Agent` remains available for offline comparison.
 `sb` uses `PlannedAgent`; there is no CLI switch to disable Laya.
 
+## Tadpoles: summon, investigate, croak
+
+The parent can request `summon_tadpoles` in a bounded plan for independent,
+narrow read-only investigations. No separate setup is needed: tadpoles share
+the parent's configured inference provider, workspace boundary and required
+Laya backend. Laya gates parent scheduling, each worker's dispatch, and every
+child tool's scheduling and evidence. Rust still validates every child plan.
+
+```sh
+sb -p "Summon two tadpoles: one to inspect the README, one to inspect visible test files. Compare their evidence." \
+  -w /path/to/approved-workspace --max-tadpoles 3 --max-inference-calls 24
+```
+
+The model decides whether to summon; a prompt is not a guarantee of delegation.
+Each group contains one to three concurrent workers; groups execute serially
+relative to other parent tools. IDs are unique across the run. The default
+run cap is three tadpoles (`--max-tadpoles`, range 1–8). Each worker has four
+reasoning turns, eight tool calls, 2,048 output tokens per response and a
+60-second deadline. Its registry contains only read tools: no writes, shell
+execution or recursive summoning, even with parent `--allow-write`.
+
+Parent and children share a 24-call inference ceiling
+(`--max-inference-calls`, range 1–200). Requests reserve capacity before awaiting,
+including requests that fail or are cancelled; no automatic retries occur.
+`--max-turns`, `--max-tool-calls` and `--max-tokens` bound the parent; the fixed
+worker budgets are additional. Final JSON and the parent completion event
+include child token usage and tool counts. Usage sums received responses,
+not an authoritative bill; failed/cancelled requests can still cost tokens.
+`usage_complete` makes missing response usage explicit.
+
+Each croak has a worker ID and either `returned` (final model report with
+bounded tool evidence) or `blocked` (explicit runtime/Laya/deadline reason).
+`returned` does not mean the objective was proven. Every croak is
+`acceptance: "not_certified"`; the parent must evaluate and verify findings.
+Evidence/report size is bounded; truncation is marked, and evidence is
+explicitly omitted if combined serialized output exceeds the tool budget.
+Cancelling the parent drops child request futures, but does not guarantee
+remote inference or already-started filesystem reads stop immediately.
+
+Feedback uses **Summoning** and **Croak [worker]** markers.
+Metadata events are `summoned`, `tadpole` (ID plus nested `detail` event),
+and `croak`. They omit objectives, reports and file contents.
+This demonstrates bounded Laya-guided delegation, not a measured speedup.
+
+### Specialized contracts, not just specialist prompts
+
+`summon_tadpoles` accepts optional `specialty` and `scope` fields. Omit
+`specialty` (or use `general`) to preserve ordinary workers. Built-in v1
+contracts are `repository_scout`, `test_analyst` and `coder`; unknown names fail.
+The parent chooses a contract explicitly; there is no learned role router.
+
+```json
+{
+  "tadpoles": [
+    {"id": "map", "specialty": "repository_scout", "scope": ".",
+     "objective": "Map the visible repository and cite relevant paths"},
+    {"id": "tests", "specialty": "test_analyst", "scope": "tests",
+     "objective": "Inspect test evidence and explain limitations"},
+    {"id": "code", "specialty": "coder", "scope": "src",
+     "objective": "Inspect the greeting function and propose a fix"}
+  ]
+}
+```
+
+`scope` defaults to the workspace root and must resolve to an existing
+workspace directory. Specialist read/list/search tools enforce that boundary;
+writes, commands and recursive delegation are excluded. Only coders additionally
+receive the non-mutating `propose_patch` tool.
+
+The scout has a Rust-authored `list_files` baseline. The analyst has a
+Rust-authored `list_files` plus `search_files` baseline with fixed heuristic
+test markers (Rust attributes, JS/TS test calls, Python and Go test names).
+These steps execute **before the child's first reasoning request**, using the
+same plan validator, Laya scheduling/evidence decisions and independent Rust
+guards. Their calls count against the existing eight-tool child budget.
+The analyst's two independent discovery reads can run in parallel.
+
+The `discovery` guard validates structured file-list/search output.
+Limited/truncated discovery or skipped search files yield insufficient evidence;
+malformed data fails. Empty matches are valid discovery output, but only mean
+no matching signals—not no tests. Hidden/ignored files and traversal depth
+remain outside the declared discovery surface.
+
+Reasoning receives the observed baseline and handles interpretation,
+additional scoped reads or replanning within remaining budgets. It cannot
+turn an incomplete fixed baseline into a satisfied contract through prose.
+A specialized croak includes `specialty`, `contract.version`,
+`contract.baseline_complete`, bounded facts/counts/samples and an interruption
+when present. Missing baseline evidence produces a blocked croak with the
+model's report retained. Rerun a narrower scope when necessary; extra model
+steps do not retroactively repair that baseline.
+
+`baseline_complete` means required guarded discovery completed within its
+visible bounded scope. It does not certify the objective, infer architecture,
+measure coverage, execute tests or prove absence of tests. The report remains
+model-authored and the parent must verify it. Metadata adds a child
+`contract_started` event naming its specialty without exposing scope or objective.
+Offline fixtures demonstrate both contracts returning after one reasoning call
+per child; no representative comparative performance result is established.
+
+### Runnable scout and test-analyst examples
+
+From the repository root, with installed `sb`, Python 3 and Azure configured for
+approved synthetic data:
+
+```sh
+sh harness/examples/specialists/run.sh scout
+sh harness/examples/specialists/run.sh analyst
+sh harness/examples/specialists/run.sh both
+```
+
+Each mode copies the checked-in synthetic greeting fixture to a temporary
+workspace, uses the corresponding prompt and runs read-only. The default is
+`both`: independent scout and analyst contracts in the same summon.
+
+The scout should cite `README.md`, `src/greeting.rs` and `tests/greeting.rs` and
+distinguish observed structure from inferred responsibilities. The analyst,
+scoped to `tests`, should explain that `greeting_contains_name` checks inline
+formatting rather than invoking `src/greeting.rs`. The fixture has no Cargo
+manifest and is not an executable test project; no execution or measured
+coverage claim is justified.
+
+`check.py` checks actual metadata for exact baseline steps, successful tools
+and matching Laya evidence decisions before first child reasoning. It requires
+returned croaks, complete received-response usage, no write/proposal tool events,
+an unchanged file set and byte-for-byte fixture equality. It does **not** certify
+the model's prose. Compare citations and claims against the fixture.
+
+```sh
+# Offline checker regression; no model calls.
+PYTHONDONTWRITEBYTECODE=1 python3 harness/examples/specialists/test_check.py
+
+# Opt-in Azure integration with the same fixture and both.txt prompt.
+cargo test --manifest-path harness/Cargo.toml -p sanborn-cli --test azure_smoke \
+  specialist_contracts_execute_baselines_before_child_reasoning -- --ignored
+```
+
+The script prints the final JSON report followed by a PASS only after checks,
+cleans up the temporary fixture, and reports CLI/check failures explicitly.
+These are real inference examples and may incur charges.
+
+### Coder contract: propose locally, apply through the parent
+
+`coder` starts with the same Rust-authored inventory and required Laya gates.
+It reads an existing file inside its scope, then submits a `propose_patch` step
+guarded by `{"kind":"patch_proposal"}`. Rust requires exact contents from that
+worker's successful `read_file` evidence, rechecks the file, and rejects no-op,
+out-of-scope, credential-like or oversized proposals.
+
+V1 allows **one existing-file replacement per worker**, with both old and new
+contents bounded to 8,000 bytes. No file creation, deletion, multi-file patch,
+shell command or test execution is available to the coder. It shares the usual
+four-turn/eight-tool budgets. Large changes must be split into narrow objectives;
+this is not an arbitrary unified-diff parser.
+
+The croak returns `patch` with `proposal_id`, path, replacement content, byte
+counts and structural validation, plus `contract.proposal_complete`. A patch
+becomes applicable only after the fixed baseline and proposal plan both pass
+their Rust checks and Laya evidence gates. No proposal or an interrupted plan
+makes the coder blocked, regardless of its prose. This does not certify code
+correctness, test results or objective acceptance.
+
+The parent can inspect the croak and submit `apply_tadpole_patch` with only
+`{"proposal_id":"code-patch"}`. It uses the run-local saved proposal, not content
+reconstructed from prose, and delegates to existing guarded `write_file`.
+`--allow-write` is required. Unknown, unaccepted, cross-workspace and consumed
+IDs fail. The exact old contents must still match; concurrent changes produce
+an explicit failure. One application attempt consumes the proposal, even on
+failure; inspect the error and summon a fresh worker rather than retrying blindly.
+Read the target afterward to verify. Permission checks are not an OS sandbox
+or a race-proof filesystem lock.
+
+```sh
+sb --allow-write -p "Summon one coder id=code scoped to src to fix the \
+existing greeting function. Inspect its proposal, apply with \
+apply_tadpole_patch, then read the changed file to verify. Do not claim tests ran."
+```
+
+Offline fixtures cover read-before-propose, bounds, wrong expected contents,
+scope, protected paths, Laya rejection, absent proposals, write policy, stale
+files and duplicate application. An opt-in synthetic Azure fixture exercises
+coder proposal → parent application → exact reread; model choices can still fail,
+so the fixture checks the actual file rather than accepting final prose.
+
+#### Runnable synthetic example and regression tests
+
+From the repository root, with `sb` installed and Azure configured for approved
+synthetic data:
+
+```sh
+sh harness/examples/coder/run.sh
+```
+
+The script copies `greeting.txt` (`hello old` followed by one newline) into a
+temporary workspace and sends the checked-in `task.txt` through stdin. A coder
+proposes `hello new` followed by one newline; the parent applies `code-patch`
+and rereads with an exact guard. The script independently compares file bytes
+and prints `PASS: greeting.txt contains exactly hello new followed by one newline.`
+only on a match. It cleans up afterward and exits nonzero on errors or mismatch.
+This uses real inference and may incur charges; model behavior is not guaranteed.
+
+```sh
+# Offline, deterministic success and rejection cases.
+cargo test --manifest-path harness/Cargo.toml -p sanborn-tools --test coder
+
+# Opt-in Azure integration using the same checked-in prompt and fixture.
+cargo test --manifest-path harness/Cargo.toml -p sanborn-cli --test azure_smoke \
+  coder_proposes_then_parent_applies_with_laya -- --ignored
+```
+
+The Azure test asserts coder proposal and parent application/read events,
+a returned croak, exact resulting file contents, unchanged file count and
+complete received-response usage. The tests are externally executed regression
+checks; neither coder nor test-analyst runs commands or certifies coverage.
+
+## Local app: `sanborn-app`
+
+A minimal local web page for one task at a time. It is a front end to the same
+harness, not a second agent: there is no model or tool loop in the browser.
+
+```sh
+# Offline demo: disposable greeting fixture, fixed synthetic reasoning script.
+sh harness/examples/app/run.sh
+# Same fixture with real Azure inference (configure with `sb init` first).
+sh harness/examples/app/run.sh azure
+
+# Any approved workspace.
+cargo run --locked --manifest-path harness/Cargo.toml -p sanborn-app -- \
+  -w /path/to/approved-workspace
+```
+
+The app prints a `http://127.0.0.1:PORT/#token=…` link. Open that exact link.
+Ctrl+C stops the server and cancels an active run. Flags mirror `sb`:
+`--endpoint`, `--deployment`, `--api-version`, `--max-inference-calls`,
+`--max-tadpoles`, `--timeout` and `--port` (default `0` picks a free port).
+
+**Integration boundary.** `sanborn-app` is a Rust binary that links the harness
+in-process. Configuration precedence, keyring/environment credential lookup,
+the Laya readiness check and the tool/Tadpole assembly come from the
+`sanborn-cli` library that `sb` itself uses, so the two cannot drift. The page
+sends only three intents: select a workspace, start/cancel a run, and apply a
+proposal. Rust validates and executes everything. It does not shell out to
+`sb`: coder proposals live in run-local memory, and keeping them in-process
+is what lets you inspect a proposal first and grant a write afterwards.
+
+**What you see.**
+
+- The selected workspace and the permission state.
+- Laya decisions, Rust plan validation, tool completions and Tadpole croaks,
+  as the same metadata-only events as `--json-events`.
+- Shared inference calls, token usage and `usage_complete`.
+- The model's final answer, labelled `not_certified`.
+- Each coder proposal as a line diff of the bytes the coder read against the
+  replacement.
+
+Four separate states are never merged: **runtime** (the run completed, failed or
+was cancelled), **proposal** (open, not applied), **application** (a guarded
+write happened or not) and **verification** (an exact reread matched, or not).
+No state claims tests ran.
+
+**Permissions.** Every run is read-only (`Policy::read_only`). To write, you
+open one proposal, tick a per-proposal grant and press *Apply*. Rust then runs
+a fixed two-step plan through Laya with no reasoning turn:
+`apply_tadpole_patch {proposal_id}` followed by `read_file` guarded by
+`text_equals` on the proposed contents. Without the grant, Rust's policy check
+rejects the plan before any tool runs; nothing is written or consumed. With
+the grant, the existing guards still apply: Laya-accepted contract, same
+workspace, exact old contents, one attempt per proposal. A model never plans
+under write permission in the app.
+
+**Stale and duplicate protection.** A proposal is marked stale and cannot be
+applied when its file no longer holds the bytes the coder read. The check is
+rerun whenever the page regains focus. If the file changes after that check,
+Rust's compare-before-replace still fails the write. A proposal from an earlier
+run, or from before a workspace change, is rejected as stale (HTTP 410). Only
+one run *or* application can be active at a time. Duplicate submissions get
+HTTP 409, and the workspace cannot change mid-run.
+
+**Lifecycle.** Cancelling drops the run future, including Tadpole requests
+(already-sent requests may still be billed). A finished or cancelled task never
+overwrites a newer state. Starting a new run discards the previous run's
+proposals. On shutdown the active run is cancelled first. Event history is
+capped at 4,000 records per run. Nothing is persisted to disk.
+
+**Local trust boundary.**
+
+- The server binds `127.0.0.1` only.
+- It answers only `Host: 127.0.0.1:PORT` or `localhost:PORT` (DNS-rebinding
+  defense), and refuses cross-origin API requests.
+- Every API call needs the per-launch 256-bit token as a bearer header.
+- The page keeps the token in memory, removes it from the address bar and
+  stores nothing in browser storage.
+- Responses carry a strict CSP (`default-src 'none'`, same-origin scripts only,
+  no framing) and `no-store`. Assets are compiled into the binary and make no
+  external requests.
+- Credentials are resolved inside Rust at each run start and are never sent to,
+  logged for, or stored in the page.
+
+This is not authentication. Anyone who can read the printed link or act as
+your local user can drive the app with your inference credentials and write
+grants. Never put it behind a public interface, proxy or tunnel.
+
+**Synthetic mode.** `--synthetic` swaps only the model for a fixed script that
+ignores your prompt and works only on the `examples/app` fixture. Rust plan
+validation, Laya, the coder contract, tools and budgets run for real. The page
+labels this mode on every screen. It exists for the demo and reproducible
+tests; it is not evidence of model behaviour.
+
+```sh
+# Deterministic integration tests: success, provider failure, script exhaustion,
+# shared budget exhaustion, deadline, cancellation, duplicate runs, denied writes,
+# stale proposals (edited file, replaced run, changed workspace), duplicate
+# application, and the Host/Origin/token guards. A separate test drives the real
+# Azure configuration path with a synthetic key and an unroutable endpoint and
+# asserts the key never appears in any response.
+cargo test --manifest-path harness/Cargo.toml -p sanborn-app
+```
+
+The only new dependency is `axum` (HTTP/1 + JSON, loopback only); `hyper` and
+`tower` were already in the tree through `reqwest`. The page itself is plain
+HTML, CSS and JavaScript with no npm packages. Packaging and distributing the
+app (installers, a desktop shell) is a separate decision and not done here.
+
 ## Tools and boundaries
 
 | Tool | Behavior |
@@ -125,6 +518,9 @@ The original conventional `Agent` remains available for offline comparison.
 | `list_files` | Visible, non-ignored recursive entries; no followed symlinks |
 | `search_files` | Bounded Rust-regex search; binary/oversized skips and limits reported |
 | `write_file` | Opt-in atomic create or compare-before-replace; existing parent required |
+| `summon_tadpoles` | Bounded read-only Laya workers; structured noncertified croaks |
+| `propose_patch` | Coder-only, non-mutating existing-file replacement proposal |
+| `apply_tadpole_patch` | Parent-only, opt-in application by saved proposal ID |
 
 Writes require `--allow-write`. For creation, `expected_content` must be null.
 For replacement, it must exactly match the current contents. Replacement keeps
@@ -178,7 +574,9 @@ cargo clippy --manifest-path harness/Cargo.toml --workspace --all-targets --lock
 Offline tests cover Azure wire translation, mocked HTTP authentication/errors,
 plan dependencies, policy denial, Laya absence, faulty-backend guard rejection,
 bounded read concurrency, serialized mutations, tool budgets and read timeouts,
-path escapes, protected paths, and guarded file writes.
+path escapes, protected paths, and guarded file writes. Tadpole fixtures cover
+concurrent workers, shared inference accounting/budget exhaustion, parent
+handoff, Laya absence, forbidden registries/tools, deadlines and cancellation.
 
 An explicitly opt-in Azure smoke test sends only synthetic fixtures:
 

@@ -16,6 +16,21 @@ sb -p "Inspect the visible files in this workspace"
 `sb init` initializes user-level inference settings and checks the required
 Laya layer; `--check-inference` optionally sends a synthetic readiness probe.
 Configuration stays outside the workspace and contains no credentials.
+`sb doctor` checks local readiness without inference requests. `sb -p -` reads
+bounded prompts from stdin; `--json` returns a versioned final result for scripts.
+Read-only **tadpoles** run the same required Laya loop: the parent summons
+bounded independent workers and receives structured **croaks** to verify.
+`--max-tadpoles` caps workers; `--max-inference-calls` caps parent and child
+requests together. No recursive summoning or child writes are allowed.
+Specialized `repository_scout` and `test_analyst` tadpoles use Rust-authored
+discovery baselines before child reasoning, required typed Laya evidence gates
+and enforced directory scope. Their contracts describe observed evidence,
+not certified architecture or measured test coverage.
+`coder` tadpoles inspect scoped existing files and propose one bounded replacement.
+Laya gates proposal evidence; only the parent can apply the saved patch through
+`apply_tadpole_patch` with `--allow-write` and an exact old-content check.
+V1 supports existing-file edits up to 8,000 bytes per old/new body, not creation,
+deletion, multi-file changes or test execution.
 `sb` uses Azure reasoning to produce bounded plans and a required local Laya
 decision layer to evaluate scheduling and evidence. It is read-only by default;
 `--allow-write` enables guarded file writes. Credentials and the endpoint come
@@ -25,6 +40,23 @@ Selected tool results are sent to the configured Azure endpoint.
 Laya's first implementation uses deterministic evidence guards, not a learned
 decision model. Backend embedding, semantic confidence calibration, shell
 isolation and comparative speed benchmarks remain unfinished.
+
+### Local app
+
+`sanborn-app` is a minimal loopback web page over the same in-process harness.
+You select a workspace explicitly, then submit one task. You can follow Laya
+decisions, tadpoles and shared usage, and cancel the run. Runs are always
+read-only. A coder proposal is shown as a diff and is written only after you
+grant permission for that single proposal. Rust then applies it with
+`apply_tadpole_patch` and verifies it with an exact reread. Credentials never
+reach the page.
+
+```sh
+sh harness/examples/app/run.sh   # offline synthetic demo on a disposable fixture
+```
+
+See [`harness/README.md`](harness/README.md#local-app-sanborn-app) for the
+trust boundary. The page binds 127.0.0.1 only; never expose it publicly.
 
 ## Development
 
@@ -59,6 +91,15 @@ Chapters cover installation and `sb init`, local Laya evidence guards, bounded
 plans and file tools, terminal feedback controls, inference boundaries,
 reproducible checks and the remaining implementation roadmap. No personal
 infrastructure or credentials are included.
+The dedicated `/docs/#tadpoles` chapter documents summoning, the required Laya
+gates, worker permissions, shared budgets and croak verification. Its lazy-loaded
+Three.js pond reuses the Sanborn frog and shows geometric tadpoles carrying
+instruction scrolls out and result packets home. It is explicitly illustrative,
+not a live run. Workers have independent departure and return timings; the
+presentation can show one croak received while another tadpole is investigating.
+Pause/replay,
+reduced-motion behavior, offscreen suspension and a static SVG fallback keep
+the presentation usable without continuous animation or WebGL.
 Shell, Rust and JSON examples use a self-hosted minimal Prism 1.30.0 bundle
 in `docs/prism.js`; its upstream license is `docs/PRISM-LICENSE.txt`.
 Regenerate it after updating Prism with:
