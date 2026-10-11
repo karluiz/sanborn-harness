@@ -22,6 +22,10 @@ Read-only **tadpoles** run the same required Laya loop: the parent summons
 bounded independent workers and receives structured **croaks** to verify.
 `--max-tadpoles` caps workers; `--max-inference-calls` caps parent and child
 requests together. No recursive summoning or child writes are allowed.
+Specialized `repository_scout` and `test_analyst` tadpoles use Rust-authored
+discovery baselines before child reasoning, required typed Laya evidence gates
+and enforced directory scope. Their contracts describe observed evidence,
+not certified architecture or measured test coverage.
 `sb` uses Azure reasoning to produce bounded plans and a required local Laya
 decision layer to evaluate scheduling and evidence. It is read-only by default;
 `--allow-write` enables guarded file writes. Credentials and the endpoint come

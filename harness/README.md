@@ -231,6 +231,59 @@ Metadata events are `summoned`, `tadpole` (ID plus nested `detail` event),
 and `croak`. They omit objectives, reports and file contents.
 This demonstrates bounded Laya-guided delegation, not a measured speedup.
 
+### Specialized contracts, not just specialist prompts
+
+`summon_tadpoles` accepts optional `specialty` and `scope` fields. Omit
+`specialty` (or use `general`) to preserve ordinary workers. Built-in v1
+contracts are `repository_scout` and `test_analyst`; unknown names fail.
+The parent chooses a contract explicitly; there is no learned role router.
+
+```json
+{
+  "tadpoles": [
+    {"id": "map", "specialty": "repository_scout", "scope": ".",
+     "objective": "Map the visible repository and cite relevant paths"},
+    {"id": "tests", "specialty": "test_analyst", "scope": "tests",
+     "objective": "Inspect test evidence and explain limitations"}
+  ]
+}
+```
+
+`scope` defaults to the workspace root and must resolve to an existing
+workspace directory. Specialist read/list/search tools enforce that boundary;
+writes, commands, recursive delegation and extra tools are excluded.
+
+The scout has a Rust-authored `list_files` baseline. The analyst has a
+Rust-authored `list_files` plus `search_files` baseline with fixed heuristic
+test markers (Rust attributes, JS/TS test calls, Python and Go test names).
+These steps execute **before the child's first reasoning request**, using the
+same plan validator, Laya scheduling/evidence decisions and independent Rust
+guards. Their calls count against the existing eight-tool child budget.
+The analyst's two independent discovery reads can run in parallel.
+
+The `discovery` guard validates structured file-list/search output.
+Limited/truncated discovery or skipped search files yield insufficient evidence;
+malformed data fails. Empty matches are valid discovery output, but only mean
+no matching signals—not no tests. Hidden/ignored files and traversal depth
+remain outside the declared discovery surface.
+
+Reasoning receives the observed baseline and handles interpretation,
+additional scoped reads or replanning within remaining budgets. It cannot
+turn an incomplete fixed baseline into a satisfied contract through prose.
+A specialized croak includes `specialty`, `contract.version`,
+`contract.baseline_complete`, bounded facts/counts/samples and an interruption
+when present. Missing baseline evidence produces a blocked croak with the
+model's report retained. Rerun a narrower scope when necessary; extra model
+steps do not retroactively repair that baseline.
+
+`baseline_complete` means required guarded discovery completed within its
+visible bounded scope. It does not certify the objective, infer architecture,
+measure coverage, execute tests or prove absence of tests. The report remains
+model-authored and the parent must verify it. Metadata adds a child
+`contract_started` event naming its specialty without exposing scope or objective.
+Offline fixtures demonstrate both contracts returning after one reasoning call
+per child; no representative comparative performance result is established.
+
 ## Tools and boundaries
 
 | Tool | Behavior |

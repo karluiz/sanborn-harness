@@ -9,6 +9,14 @@ pub enum EvidenceGuard {
     ToolSucceeded,
     TextEquals { value: String },
     TextContains { value: String },
+    Discovery { shape: DiscoveryShape },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiscoveryShape {
+    FileList,
+    SearchMatches,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -45,6 +53,38 @@ impl EvidenceGuard {
             Self::TextEquals { value } => evidence.output == value,
             Self::TextContains { value } if !value.is_empty() => evidence.output.contains(value),
             Self::TextContains { .. } => return GuardCheck::Insufficient,
+            Self::Discovery { shape } => {
+                let Ok(value) = serde_json::from_str::<serde_json::Value>(evidence.output) else {
+                    return GuardCheck::Failed;
+                };
+                if value["limited"].as_bool() != Some(false) {
+                    return GuardCheck::Insufficient;
+                }
+                if value["scope"].as_str().is_none() {
+                    return GuardCheck::Failed;
+                }
+                match shape {
+                    DiscoveryShape::FileList => {
+                        value["entries"].as_array().is_some_and(|entries| {
+                            entries.iter().all(|entry| entry.as_str().is_some())
+                        })
+                    }
+                    DiscoveryShape::SearchMatches => {
+                        if value["skipped_binary"].as_u64() != Some(0)
+                            || value["skipped_oversized"].as_u64() != Some(0)
+                        {
+                            return GuardCheck::Insufficient;
+                        }
+                        value["matches"].as_array().is_some_and(|matches| {
+                            matches.iter().all(|item| {
+                                item["path"].as_str().is_some()
+                                    && item["line"].as_u64().is_some_and(|line| line > 0)
+                                    && item["text"].as_str().is_some()
+                            })
+                        })
+                    }
+                }
+            }
         };
         if matches {
             GuardCheck::Passed
@@ -109,6 +149,62 @@ impl DecisionEngine for LocalLaya {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn discovery_requires_typed_complete_evidence_not_just_success() {
+        use serde_json::json;
+        for (shape, value, expected) in [
+            (
+                DiscoveryShape::FileList,
+                json!({"entries":["src/"],"limited":false,"scope":"visible"}),
+                GuardCheck::Passed,
+            ),
+            (
+                DiscoveryShape::FileList,
+                json!({"entries":[],"limited":true,"scope":"visible"}),
+                GuardCheck::Insufficient,
+            ),
+            (
+                DiscoveryShape::FileList,
+                json!({"entries":[1],"limited":false,"scope":"visible"}),
+                GuardCheck::Failed,
+            ),
+            (
+                DiscoveryShape::SearchMatches,
+                json!({"matches":[],"limited":false,"scope":"visible","skipped_binary":0,"skipped_oversized":0}),
+                GuardCheck::Passed,
+            ),
+            (
+                DiscoveryShape::SearchMatches,
+                json!({"matches":[],"limited":false,"scope":"visible","skipped_binary":1,"skipped_oversized":0}),
+                GuardCheck::Insufficient,
+            ),
+            (
+                DiscoveryShape::SearchMatches,
+                json!({"matches":[{"path":"test.rs","line":0,"text":"test"}],"limited":false,"scope":"visible","skipped_binary":0,"skipped_oversized":0}),
+                GuardCheck::Failed,
+            ),
+        ] {
+            let output = value.to_string();
+            let guard = EvidenceGuard::Discovery { shape };
+            assert_eq!(
+                guard.check(&Evidence {
+                    is_error: false,
+                    output: &output,
+                    truncated: false
+                }),
+                expected
+            );
+            assert_eq!(
+                guard.check(&Evidence {
+                    is_error: false,
+                    output: &output,
+                    truncated: true
+                }),
+                GuardCheck::Insufficient
+            );
+        }
+    }
 
     #[test]
     fn continues_only_with_valid_plan_dependencies_and_evidence() {

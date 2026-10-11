@@ -63,6 +63,9 @@ impl Default for PlanConfig {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum PlanEvent {
+    ContractStarted {
+        specialty: String,
+    },
     Summoned {
         count: usize,
     },
@@ -138,6 +141,16 @@ impl PlannedAgent {
     pub async fn run(
         &self,
         task: &str,
+        on_event: impl FnMut(&PlanEvent) + Send,
+    ) -> Result<RunOutcome> {
+        self.run_with_initial_plan(task, None, on_event).await
+    }
+
+    /// A trusted contract can supply the first plan; it gets the same Rust and Laya gates.
+    pub async fn run_with_initial_plan(
+        &self,
+        task: &str,
+        initial_plan: Option<Value>,
         mut on_event: impl FnMut(&PlanEvent) + Send,
     ) -> Result<RunOutcome> {
         if task.trim().is_empty() {
@@ -163,7 +176,8 @@ impl PlannedAgent {
              Available tool descriptions and input schemas: {}. \
              A plan contains at most {MAX_PLAN_STEPS} ordered steps. \
              Each step has an id, tool, fixed JSON input, depends_on (earlier IDs only), and guard. \
-             Guards are tool_succeeded, text_equals with value, or text_contains with nonempty value. \
+             Guards are tool_succeeded, text_equals with value, text_contains with nonempty value, \
+             or discovery with shape file_list/search_matches for complete structured discovery output. \
              Guards only validate tool evidence; they never prove task completion. \
              Steps cannot reference or interpolate outputs of future tools. Read and inspect first \
              if edits need unknown contents, then submit another plan. \
@@ -183,6 +197,28 @@ impl PlannedAgent {
         let mut usage = Usage::default();
         let mut tool_calls = 0;
         let started = Instant::now();
+        if let Some(input) = initial_plan {
+            let plan = self.validate_plan(input.clone())?;
+            let content = self
+                .execute_plan(&plan, &mut tool_calls, &mut on_event)
+                .await?;
+            messages.push(Message {
+                role: Role::Assistant,
+                content: vec![ContentBlock::ToolUse {
+                    id: "sanborn_contract_baseline".into(),
+                    name: "submit_plan".into(),
+                    input,
+                }],
+            });
+            messages.push(Message {
+                role: Role::User,
+                content: vec![ContentBlock::ToolResult {
+                    tool_use_id: "sanborn_contract_baseline".into(),
+                    content,
+                    is_error: false,
+                }],
+            });
+        }
         for turn in 1..=self.config.max_turns {
             on_event(&PlanEvent::ReasoningStarted { turn });
             let response = self
@@ -545,7 +581,10 @@ fn plan_spec() -> ToolSpec {
                             {"type": "object", "additionalProperties": false, "required": ["kind", "value"],
                                 "properties": {"kind": {"const": "text_equals"}, "value": {"type": "string"}}},
                             {"type": "object", "additionalProperties": false, "required": ["kind", "value"],
-                                "properties": {"kind": {"const": "text_contains"}, "value": {"type": "string", "minLength": 1}}}
+                                "properties": {"kind": {"const": "text_contains"}, "value": {"type": "string", "minLength": 1}}},
+                            {"type": "object", "additionalProperties": false, "required": ["kind", "shape"],
+                                "properties": {"kind": {"const": "discovery"},
+                                    "shape": {"enum": ["file_list", "search_matches"]}}}
                         ]}
                     }
                 }

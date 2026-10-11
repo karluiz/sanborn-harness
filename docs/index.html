@@ -257,6 +257,32 @@ if laya.recommends_this_step()
             <p>Requests reserve shared capacity before awaiting, including failures and cancellations. Observed JSON usage includes received child responses; missing usage is flagged with <code>usage_complete</code>. Failed or cancelled requests may still incur provider charges. Cancelling the parent drops child futures but does not guarantee remote inference or already-started reads stop immediately.</p>
           </details>
           <p>Small questions, explicit boundaries, evidence brought back. Tadpoles demonstrate bounded Laya-guided delegation—not a measured speedup or independent task certification.</p>
+          <h3>A specialty is a contract.<br>Not a costume for a prompt.</h3>
+          <p>Two built-in contracts start with known work in Rust: <code>repository_scout</code> and <code>test_analyst</code>. The parent chooses the specialty explicitly. Each receives a fixed discovery plan before its first reasoning request; Laya gates every scheduled step and checks typed evidence. Rust independently validates the plan, permissions and guards.</p>
+          <div class="table-scroll"><table><caption>Specialist contracts v1 · the baseline runs before reasoning</caption><thead><tr><th scope="col">Specialty</th><th scope="col">Rust-authored baseline</th><th scope="col">Reasoning’s job</th></tr></thead><tbody>
+            <tr><th scope="row"><code>repository_scout</code></th><td>List the visible file structure within its directory scope.</td><td>Interpret structure, inspect relevant manifests/source and cite paths. Separate observation from inference.</td></tr>
+            <tr><th scope="row"><code>test_analyst</code></th><td>List files and search fixed heuristic test signals; independent reads can run together.</td><td>Inspect relevant tests and report evidence-backed findings. No execution or measured coverage claim.</td></tr>
+          </tbody></table></div>
+          <figure class="command-block"><figcaption>ILLUSTRATIVE SUMMON INPUT · EXISTING, APPROVED DIRECTORIES ONLY</figcaption><pre><code class="language-json">{
+  "tadpoles": [
+    {
+      "id": "map",
+      "specialty": "repository_scout",
+      "scope": ".",
+      "objective": "Map visible structure and cite paths"
+    },
+    {
+      "id": "tests",
+      "specialty": "test_analyst",
+      "scope": "tests",
+      "objective": "Inspect test evidence and its limitations"
+    }
+  ]
+}</code></pre></figure>
+          <p><code>scope</code> is an enforced directory boundary, not a suggestion in a prompt. Specialists can only list, search or read inside it. Unknown specialties are rejected; omitting the specialty preserves the ordinary general worker. The baseline consumes the existing child tool budget and uses the shared inference configuration.</p>
+          <p>The new <code>discovery</code> evidence guard checks structured file-list or search results. Limited or truncated evidence, and skipped search files, produce insufficient evidence; malformed results fail. Reasoning sees those outcomes and may interpret or replan, but final prose cannot turn an incomplete fixed baseline into a completed contract. Rerun with a narrower scope when needed.</p>
+          <p>Specialist croaks carry a versioned contract, <code>baseline_complete</code> and bounded observed facts with counts and samples. An incomplete baseline makes the croak blocked while retaining the model’s report. Completeness applies only to bounded visible discovery, not task acceptance. The analyst’s test markers are heuristic: no matches does not mean no tests, and no report measures coverage or proves tests passed.</p>
+          <p>This is the distinction we can demonstrate today: known first steps execute through Rust and Laya without a model planning turn; reasoning handles what still needs interpretation. Offline fixtures return both contracts after one reasoning call per child. That is mechanism evidence, not a representative speed benchmark or learned specialist routing.</p>
         </section>
         <section id="terminal" class="chapter">
           <h2>Feedback for<br><em>terminal people.</em></h2>
@@ -298,6 +324,7 @@ sb -p - --json --json-events &lt; task.txt</code></pre></figure>
           <details open><summary>What we have actually observed</summary>
             <p><strong>End-to-end mechanism:</strong> an opt-in synthetic Azure fixture reads two files independently, writes an exact result, then reads it back through a dependency and text-equality guard. Acceptance checks assert the exact contents, four tool executions, eight Laya decisions and two reasoning calls. That shows plan execution without a reasoning call between every step—not a comparative speedup.</p>
             <p><strong>Tadpole handoff:</strong> a second opt-in synthetic Azure fixture summons two workers, checks each child’s Laya evidence events, and requires parent verification of both files. It asserts returned croaks, matching shared usage/tool totals, the inference ceiling and an unchanged workspace. Offline fixtures exercise permission rejection, Laya absence, deadlines and cancellation.</p>
+            <p><strong>Contract-first specialists:</strong> offline fixtures assert that both discovery baselines precede the first child inference call, enforce directory scope, reject unknown roles and keep incomplete evidence blocked even under a faulty Laya recommendation. A separate opt-in synthetic Azure fixture checks both specialist baselines and their Laya events before child reasoning.</p>
             <p><strong>Terminal overhead:</strong> release-mode measurements observed about 0.18 µs per styled frame formatted to a sink, and 0.8 µs per frame written to a drained pseudo-terminal. Those are renderer microbenchmarks on one local setup, not screen-rendering, SSH or harness latency guarantees. Slow terminals can still add cost; <code>--plain</code> removes animation.</p>
             <p><strong>Failure coverage:</strong> offline tests exercise Azure wire translation and mocked HTTP, init persistence and failure behavior, Laya absence, faulty-engine guard rejection, dependencies, policy denial, read concurrency, serialized mutations, budgets, read timeouts, protected paths and guarded writes. Terminal checks cover pipes, JSON, no-color and cleanup.</p>
           </details>

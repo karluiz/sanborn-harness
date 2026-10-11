@@ -130,6 +130,7 @@ fn tadpoles_with_laya_shared_usage_and_parent_verification() {
             && e["detail"]["event"] == "laya_decision"
             && e["detail"]["stage"] == "evidence"));
     }
+
     let finished = events.iter().find(|e| e["event"] == "finished").unwrap();
     let result: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(result["usage"], finished["usage"]);
@@ -140,4 +141,91 @@ fn tadpoles_with_laya_shared_usage_and_parent_verification() {
     let final_text = result["final_text"].as_str().unwrap();
     assert!(final_text.contains("north-fixture-17") && final_text.contains("south-fixture-29"));
     assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 2);
+}
+
+#[test]
+#[ignore = "real Azure inference; only synthetic specialist fixtures are sent"]
+fn specialist_contracts_execute_baselines_before_child_reasoning() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir(root.path().join("tests")).unwrap();
+    std::fs::write(
+        root.path().join("README.md"),
+        "Synthetic crate with a greeting test.\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.path().join("tests/greeting.rs"),
+        "#[test]\nfn test_greeting() { assert_eq!(2 + 2, 4); }\n",
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_sb"))
+        .args([
+            "-p",
+            "Synthetic fixture: use one submit_plan step to call summon_tadpoles with \
+                two workers: id=scout, specialty=repository_scout, scope=., objective=describe the \
+                visible fixture structure; id=analyst, specialty=test_analyst, scope=tests, \
+                objective=inspect greeting.rs and report observed test evidence without claiming \
+                measured coverage or execution. Use tool_succeeded for the summon. After reading \
+                both croaks, summarize evidence and limitations. Do not skip the summon.",
+            "--json",
+            "--json-events",
+            "--max-turns",
+            "4",
+            "--max-inference-calls",
+            "12",
+            "--timeout",
+            "150",
+            "-w",
+        ])
+        .arg(root.path())
+        .output()
+        .unwrap();
+    let trace = String::from_utf8(output.stderr).unwrap();
+    assert!(output.status.success(), "sb failed: {trace}");
+    let events: Vec<Value> = trace
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    for (id, specialty, count) in [
+        ("scout", "repository_scout", 1),
+        ("analyst", "test_analyst", 2),
+    ] {
+        let child_events: Vec<_> = events
+            .iter()
+            .filter(|e| e["event"] == "tadpole" && e["id"] == id)
+            .collect();
+        assert!(child_events
+            .iter()
+            .any(|e| e["detail"]["event"] == "contract_started"
+                && e["detail"]["specialty"] == specialty));
+        let reasoning = child_events
+            .iter()
+            .position(|e| e["detail"]["event"] == "reasoning_started")
+            .unwrap();
+        assert_eq!(
+            child_events[..reasoning]
+                .iter()
+                .filter(|e| e["detail"]["event"] == "tool_finished")
+                .count(),
+            count
+        );
+        assert_eq!(
+            child_events[..reasoning]
+                .iter()
+                .filter(|e| e["detail"]["event"] == "laya_decision"
+                    && e["detail"]["stage"] == "evidence")
+                .count(),
+            count
+        );
+        assert!(events
+            .iter()
+            .any(|e| e["event"] == "croak" && e["id"] == id && e["status"] == "returned"));
+    }
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["status"], "completed");
+    assert_eq!(result["usage_complete"], true);
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("tests/greeting.rs")).unwrap(),
+        "#[test]\nfn test_greeting() { assert_eq!(2 + 2, 4); }\n"
+    );
 }

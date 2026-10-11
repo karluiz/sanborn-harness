@@ -132,6 +132,11 @@ impl<W: Write> Feedback<W> {
             return;
         }
         match event {
+            PlanEvent::ContractStarted { specialty } => self.line(
+                ">",
+                &format!("Contract: {specialty} - Rust steps, Laya gates"),
+                "36",
+            ),
             PlanEvent::Summoned { count } => {
                 self.line(
                     ">",
@@ -151,6 +156,9 @@ impl<W: Write> Feedback<W> {
                 );
             }
             PlanEvent::Tadpole { id, event } => match event.as_ref() {
+                PlanEvent::ContractStarted { specialty } => {
+                    self.line(">", &format!("Tadpole [{id}] contract: {specialty}"), "36")
+                }
                 PlanEvent::ReasoningStarted { turn } => {
                     self.phase(&format!("Tadpole [{id}] reasoning - turn {turn}"))
                 }
