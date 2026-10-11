@@ -216,25 +216,26 @@ fn tadpoles_with_laya_shared_usage_and_parent_verification() {
 fn specialist_contracts_execute_baselines_before_child_reasoning() {
     let root = tempfile::tempdir().unwrap();
     std::fs::create_dir(root.path().join("tests")).unwrap();
+    std::fs::create_dir(root.path().join("src")).unwrap();
     std::fs::write(
         root.path().join("README.md"),
-        "Synthetic crate with a greeting test.\n",
+        include_str!("../../../examples/specialists/fixture/README.md"),
     )
     .unwrap();
     std::fs::write(
         root.path().join("tests/greeting.rs"),
-        "#[test]\nfn test_greeting() { assert_eq!(2 + 2, 4); }\n",
+        include_str!("../../../examples/specialists/fixture/tests/greeting.rs"),
+    )
+    .unwrap();
+    std::fs::write(
+        root.path().join("src/greeting.rs"),
+        include_str!("../../../examples/specialists/fixture/src/greeting.rs"),
     )
     .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_sb"))
         .args([
             "-p",
-            "Synthetic fixture: use one submit_plan step to call summon_tadpoles with \
-                two workers: id=scout, specialty=repository_scout, scope=., objective=describe the \
-                visible fixture structure; id=analyst, specialty=test_analyst, scope=tests, \
-                objective=inspect greeting.rs and report observed test evidence without claiming \
-                measured coverage or execution. Use tool_succeeded for the summon. After reading \
-                both croaks, summarize evidence and limitations. Do not skip the summon.",
+            include_str!("../../../examples/specialists/both.txt"),
             "--json",
             "--json-events",
             "--max-turns",
@@ -294,6 +295,14 @@ fn specialist_contracts_execute_baselines_before_child_reasoning() {
     assert_eq!(result["usage_complete"], true);
     assert_eq!(
         std::fs::read_to_string(root.path().join("tests/greeting.rs")).unwrap(),
-        "#[test]\nfn test_greeting() { assert_eq!(2 + 2, 4); }\n"
+        include_str!("../../../examples/specialists/fixture/tests/greeting.rs")
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("src/greeting.rs")).unwrap(),
+        include_str!("../../../examples/specialists/fixture/src/greeting.rs")
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("README.md")).unwrap(),
+        include_str!("../../../examples/specialists/fixture/README.md")
     );
 }

@@ -302,6 +302,35 @@ if laya.recommends_this_step()
           <p>The new <code>discovery</code> evidence guard checks structured file-list or search results. Limited or truncated evidence, and skipped search files, produce insufficient evidence; malformed results fail. Reasoning sees those outcomes and may interpret or replan, but final prose cannot turn an incomplete fixed baseline into a completed contract. Rerun with a narrower scope when needed.</p>
           <p>Specialist croaks carry a versioned contract, <code>baseline_complete</code> and bounded observed facts with counts and samples. An incomplete baseline makes the croak blocked while retaining the model’s report. Completeness applies only to bounded visible discovery, not task acceptance. The analyst’s test markers are heuristic: no matches does not mean no tests, and no report measures coverage or proves tests passed.</p>
           <p>This is the distinction we can demonstrate today: known first steps execute through Rust and Laya without a model planning turn; reasoning handles what still needs interpretation. Offline fixtures return both contracts after one reasoning call per child. That is mechanism evidence, not a representative speed benchmark or learned specialist routing.</p>
+          <h3 id="specialist-examples">Meet the specialists.<br><em>One fixture. Different questions.</em></h3>
+          <p>Start with the synthetic greeting project in <code>harness/examples/specialists</code>. The scout maps its structure; the analyst inspects its illustrative test. Run either alone or summon both independently. The fixture deliberately has no Cargo manifest: the goal is inspection, not test execution.</p>
+          <figure class="command-block"><figcaption>FROM THE REPOSITORY ROOT · SB, PYTHON 3 AND CONFIGURED AZURE REQUIRED</figcaption><pre><code class="language-bash"># Map the visible project with cited paths.
+sh harness/examples/specialists/run.sh scout
+
+# Inspect test evidence inside the tests directory.
+sh harness/examples/specialists/run.sh analyst
+
+# Summon both independently in the same run (default).
+sh harness/examples/specialists/run.sh both</code></pre></figure>
+          <div class="tadpole-lifecycle">
+            <article><h3>Scout’s question</h3><p>What exists, and what does each file appear to do? Look for cited paths to <code>README.md</code>, <code>src/greeting.rs</code> and <code>tests/greeting.rs</code>. Observed contents and inferred responsibilities should remain distinct.</p></article>
+            <article><h3>Analyst’s question</h3><p>What does <code>greeting_contains_name</code> actually assert? The test formats a string inline; it never calls the greeting function in <code>src/greeting.rs</code>. That is an evidence-backed limitation, not a measured coverage result.</p></article>
+            <article><h3>Check the boundaries</h3><p>The script checks real events: correct baseline steps and Laya evidence acceptance before each child’s first reasoning request, returned croaks, complete received-response usage and byte-for-byte unchanged fixture files. It rejects unexpected proposal or write tools.</p></article>
+          </div>
+          <figure class="command-block"><figcaption>EXPECTED CHECK RESULT · MODEL-AUTHORED REPORTS VARY</figcaption><pre><code>PASS: specialist baselines and Laya evidence precede reasoning;
+croaks returned; fixture unchanged. Reports remain uncertified.</code></pre></figure>
+          <p>Each run creates a temporary fixture, prints the structured final answer and checks runtime metadata with <code>check.py</code>. Nonzero exits and failed checks print diagnostics. These examples use real inference and may incur charges. A passed mechanism check does not validate every sentence in the report; compare cited claims against the fixture yourself.</p>
+          <figure class="command-block"><figcaption>CHECK THE CHECKER OFFLINE · RUN THE SHARED FIXTURE AGAINST AZURE</figcaption><pre><code class="language-bash"># No inference: reject missing/early evidence, blocked croaks,
+# unexpected write tools, changed contents and extra files.
+PYTHONDONTWRITEBYTECODE=1 python3 \
+  harness/examples/specialists/test_check.py
+
+# Real inference: same two-specialist fixture and prompt.
+cargo test --manifest-path harness/Cargo.toml \
+  -p sanborn-cli --test azure_smoke \
+  specialist_contracts_execute_baselines_before_child_reasoning \
+  -- --ignored</code></pre></figure>
+          <p>For a worker that proposes an actual change, continue with the <a class="text-link" href="#coder-example">coder example and exact-content check</a> below. The scout and analyst examples never enable writes.</p>
           <h3>Coders bring back a patch.<br><em>Not permission to write.</em></h3>
           <p>A coding Tadpole can now inspect an existing file and propose a replacement. Its workspace remains read-only. The parent inspects the croak, decides whether to apply, and verifies the result. Laya gates the evidence at each boundary; Rust retains execution authority.</p>
           <div class="tadpole-lifecycle">

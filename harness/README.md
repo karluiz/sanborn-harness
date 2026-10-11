@@ -287,6 +287,47 @@ model-authored and the parent must verify it. Metadata adds a child
 Offline fixtures demonstrate both contracts returning after one reasoning call
 per child; no representative comparative performance result is established.
 
+### Runnable scout and test-analyst examples
+
+From the repository root, with installed `sb`, Python 3 and Azure configured for
+approved synthetic data:
+
+```sh
+sh harness/examples/specialists/run.sh scout
+sh harness/examples/specialists/run.sh analyst
+sh harness/examples/specialists/run.sh both
+```
+
+Each mode copies the checked-in synthetic greeting fixture to a temporary
+workspace, uses the corresponding prompt and runs read-only. The default is
+`both`: independent scout and analyst contracts in the same summon.
+
+The scout should cite `README.md`, `src/greeting.rs` and `tests/greeting.rs` and
+distinguish observed structure from inferred responsibilities. The analyst,
+scoped to `tests`, should explain that `greeting_contains_name` checks inline
+formatting rather than invoking `src/greeting.rs`. The fixture has no Cargo
+manifest and is not an executable test project; no execution or measured
+coverage claim is justified.
+
+`check.py` checks actual metadata for exact baseline steps, successful tools
+and matching Laya evidence decisions before first child reasoning. It requires
+returned croaks, complete received-response usage, no write/proposal tool events,
+an unchanged file set and byte-for-byte fixture equality. It does **not** certify
+the model's prose. Compare citations and claims against the fixture.
+
+```sh
+# Offline checker regression; no model calls.
+PYTHONDONTWRITEBYTECODE=1 python3 harness/examples/specialists/test_check.py
+
+# Opt-in Azure integration with the same fixture and both.txt prompt.
+cargo test --manifest-path harness/Cargo.toml -p sanborn-cli --test azure_smoke \
+  specialist_contracts_execute_baselines_before_child_reasoning -- --ignored
+```
+
+The script prints the final JSON report followed by a PASS only after checks,
+cleans up the temporary fixture, and reports CLI/check failures explicitly.
+These are real inference examples and may incur charges.
+
 ### Coder contract: propose locally, apply through the parent
 
 `coder` starts with the same Rust-authored inventory and required Laya gates.
