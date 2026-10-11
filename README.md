@@ -69,7 +69,9 @@ The dedicated `/docs/#tadpoles` chapter documents summoning, the required Laya
 gates, worker permissions, shared budgets and croak verification. Its lazy-loaded
 Three.js pond reuses the Sanborn frog and shows geometric tadpoles carrying
 instruction scrolls out and result packets home. It is explicitly illustrative,
-not a live run. Pause/replay,
+not a live run. Workers have independent departure and return timings; the
+presentation can show one croak received while another tadpole is investigating.
+Pause/replay,
 reduced-motion behavior, offscreen suspension and a static SVG fallback keep
 the presentation usable without continuous animation or WebGL.
 Shell, Rust and JSON examples use a self-hosted minimal Prism 1.30.0 bundle

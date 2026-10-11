@@ -40,7 +40,7 @@ code[class*="language-"]{color:#d9e4cc;white-space:pre;tab-size:2}
 .pond-parent{position:absolute;right:10%;top:14%;font-size:11px;letter-spacing:1px;color:var(--fern);text-align:right;pointer-events:none}
 .pond-parent>span{display:block;margin-top:8px;font-size:11px;letter-spacing:0;color:#c1ceae}
 #pond-payload{position:absolute;left:22px;bottom:20px;font-size:12px;color:#e3c392;pointer-events:none}
-.tadpole-pond[data-payload="results"] #pond-payload{color:#8fd2c3}
+.tadpole-pond[data-payload="results"] #pond-payload,.tadpole-pond[data-payload="mixed"] #pond-payload{color:#8fd2c3}
 #pond-error{position:absolute;bottom:0;left:22px;right:22px;font-size:12px;color:#e3c392;background:var(--ink);padding:10px}
 .pond-controls{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:22px;border-top:1px solid #ffffff26}
 .pond-controls p{margin:0;line-height:1.6;font-size:13px;max-width:48ch}
