@@ -182,6 +182,7 @@ if laya.recommends_this_step()
           <h2>Execute a<br><em>guarded plan.</em></h2>
           <p class="lead">Validate the whole plan.<br>Authorize every step.</p>
           <p>Azure submits one <code>submit_plan</code> call per reasoning turn. A plan contains up to 16 ordered steps: an ID, a registered tool, fixed JSON input, earlier dependencies and an evidence guard. Inputs cannot interpolate future tool outputs. If an edit needs unknown contents, inspect first, then request a new plan.</p>
+          <p>The plan schema now contains the actual registered tools and their typed inputs. Azure uses strict function calling with <code>parallel_tool_calls: false</code>; this limits model function calls, not Rust’s independent read concurrency or asynchronous Tadpoles. Azure’s schema subset does not enforce all numeric/text bounds, so Rust keeps enforcing the original limits and permissions. The deployment/API must support strict function calling: unsupported requests fail explicitly, without a silent non-strict fallback. Local doctor and a synthetic chat probe do not certify that compatibility.</p>
           <figure class="command-block"><figcaption>ILLUSTRATIVE STEP · EXACT EVIDENCE, NOT TASK CERTIFICATION</figcaption><pre><code class="language-json">{
   "id": "verify",
   "tool": "read_file",
@@ -302,8 +303,33 @@ if laya.recommends_this_step()
           <p>The new <code>discovery</code> evidence guard checks structured file-list or search results. Limited or truncated evidence, and skipped search files, produce insufficient evidence; malformed results fail. Reasoning sees those outcomes and may interpret or replan, but final prose cannot turn an incomplete fixed baseline into a completed contract. Rerun with a narrower scope when needed.</p>
           <p>Specialist croaks carry a versioned contract, <code>baseline_complete</code> and bounded observed facts with counts and samples. An incomplete baseline makes the croak blocked while retaining the model’s report. Completeness applies only to bounded visible discovery, not task acceptance. The analyst’s test markers are heuristic: no matches does not mean no tests, and no report measures coverage or proves tests passed.</p>
           <p>This is the distinction we can demonstrate today: known first steps execute through Rust and Laya without a model planning turn; reasoning handles what still needs interpretation. Offline fixtures return both contracts after one reasoning call per child. That is mechanism evidence, not a representative speed benchmark or learned specialist routing.</p>
+          <h3>Bring back findings.<br><em>Let Rust carry the quotes.</em></h3>
+          <p>Scouts and analysts now have <code>submit_findings</code>: 1–6 structured findings with a unique ID, model-authored statement, <code>observation</code> or <code>inference</code> kind, workspace path and inclusive 1-based line range. Read the file first, inspect its contents, then submit a separate plan with <code>guard: {"kind":"cited_findings"}</code>. Statements are bounded to 512 bytes; IDs to 48 ASCII bytes; paths to 4,096 bytes.</p>
+          <p>Omit <code>excerpt</code> and Rust attaches the exact selected lines—up to 1,024 bytes, joined with LF without the trailing LF, with CRLF normalized. Supplied excerpts must match exactly. Rust checks prior successful reads, scoped paths and fresh whole-file contents; changed files require a new read. Laya gates the typed evidence, and Rust independently enforces it. The model chooses what a finding means; it does not need to retype the source.</p>
+          <p>The latest accepted submission from a completed plan appears in <code>croak.findings</code> with <code>contract.citations_verified: true</code> and <code>claims_certified: false</code>. This proves citation integrity at submission—not the truth of an interpretation, test execution or coverage. Missing, rejected, truncated or interrupted-plan findings remain <code>unverified</code>, even when a baseline-complete worker returns a confident report. Generic workers and coders do not receive this tool.</p>
+          <h3>Define the subjects.<br><em>Not just the prompt.</em></h3>
+          <p>A parent can declare <code>citation_subjects</code> on a scout or analyst: up to six fixed IDs, kinds, scoped paths and line ranges. The child reads the files, then submits a <code>findings</code> object keyed by those IDs, with <code>statement</code> only in each value. Rust attaches the immutable references and exact excerpts. Missing or extra subjects, attempted reference overrides and stale evidence fail; incomplete required subjects block the croak.</p>
+          <figure class="command-block"><figcaption>DECLARED ON THE WORKER · SUBMITTED BY THE CHILD</figcaption><pre><code class="language-json">{
+  "citation_subjects": [{
+    "id": "greeting_test",
+    "kind": "observation",
+    "path": "tests/greeting.rs",
+    "start_line": 1,
+    "end_line": 4
+  }]
+}
+
+{
+  "findings": {
+    "greeting_test": {
+      "statement": "This test asserts inline formatting."
+    }
+  }
+}</code></pre></figure>
+          <p><code>contract.citation_subjects_required</code> and <code>contract.citation_subjects_complete</code> expose this completeness check. No declared subjects preserves flexible array findings and the existing baseline-based returned status. The subject set is the caller’s evidence requirement—not a claim that Rust understands the objective’s meaning.</p>
           <h3 id="specialist-examples">Meet the specialists.<br><em>One fixture. Different questions.</em></h3>
           <p>Start with the synthetic greeting project in <code>harness/examples/specialists</code>. The scout maps its structure; the analyst inspects its illustrative test. Run either alone or summon both independently. The fixture deliberately has no Cargo manifest: the goal is inspection, not test execution.</p>
+          <p>The prompts now declare their citation subjects in structured summon input. The checker independently requires the expected full-file references, so silently changing a requested subject cannot pass as success.</p>
           <figure class="command-block"><figcaption>FROM THE REPOSITORY ROOT · SB, PYTHON 3 AND CONFIGURED AZURE REQUIRED</figcaption><pre><code class="language-bash"># Map the visible project with cited paths.
 sh harness/examples/specialists/run.sh scout
 
@@ -315,13 +341,14 @@ sh harness/examples/specialists/run.sh both</code></pre></figure>
           <div class="tadpole-lifecycle">
             <article><h3>Scout’s question</h3><p>What exists, and what does each file appear to do? Look for cited paths to <code>README.md</code>, <code>src/greeting.rs</code> and <code>tests/greeting.rs</code>. Observed contents and inferred responsibilities should remain distinct.</p></article>
             <article><h3>Analyst’s question</h3><p>What does <code>greeting_contains_name</code> actually assert? The test formats a string inline; it never calls the greeting function in <code>src/greeting.rs</code>. That is an evidence-backed limitation, not a measured coverage result.</p></article>
-            <article><h3>Check the boundaries</h3><p>The script checks real events: correct baseline steps and Laya evidence acceptance before each child’s first reasoning request, returned croaks, complete received-response usage and byte-for-byte unchanged fixture files. It rejects unexpected proposal or write tools.</p></article>
+            <article><h3>Check the findings</h3><p>The script requires accepted structured citations with unique IDs, expected paths, full-file ranges and exact excerpts. It checks the analyst’s inline-formatting evidence, guarded baselines before reasoning, complete received-response usage and unchanged fixture bytes. Missing findings or unexpected proposal/write tools fail.</p></article>
           </div>
           <figure class="command-block"><figcaption>EXPECTED CHECK RESULT · MODEL-AUTHORED REPORTS VARY</figcaption><pre><code>PASS: specialist baselines and Laya evidence precede reasoning;
-croaks returned; fixture unchanged. Reports remain uncertified.</code></pre></figure>
-          <p>Each run creates a temporary fixture, prints the structured final answer and checks runtime metadata with <code>check.py</code>. Nonzero exits and failed checks print diagnostics. These examples use real inference and may incur charges. A passed mechanism check does not validate every sentence in the report; compare cited claims against the fixture yourself.</p>
+expected fixture findings have exact citations; fixture unchanged.
+Model interpretations remain uncertified.</code></pre></figure>
+          <p>Each run creates a temporary fixture, prints the structured final answer and checks metadata plus actual croaks with <code>check.py</code>. Nonzero exits and failed checks print diagnostics. These examples use real inference and may incur charges; model deviations or exhausted budgets can fail a run. PASS verifies these fixture-specific evidence requirements, not every sentence in the report or semantic correctness across arbitrary projects.</p>
           <figure class="command-block"><figcaption>CHECK THE CHECKER OFFLINE · RUN THE SHARED FIXTURE AGAINST AZURE</figcaption><pre><code class="language-bash"># No inference: reject missing/early evidence, blocked croaks,
-# unexpected write tools, changed contents and extra files.
+# invented citations, unexpected writes, changed contents and extra files.
 PYTHONDONTWRITEBYTECODE=1 python3 \
   harness/examples/specialists/test_check.py
 
@@ -389,10 +416,10 @@ sb -p "your task" --json-events</code></pre></figure>
 cat task.txt | sb -p -
 sb -p - --json --json-events &lt; task.txt</code></pre></figure>
           <p><code>-p -</code> accepts piped or redirected UTF-8 prompts, preserving line breaks. Prompts must be nonempty, contain no NUL bytes and fit within 128,000 bytes. Interactive stdin is rejected; stalled pipes are bounded by <code>--timeout</code> before the separate task execution deadline begins.</p>
-          <p><code>--json</code> emits one versioned final object on stdout: runtime status, final text, reasoning turns, tool count, token usage, agent duration and Laya backend. Successful results explicitly say <code>acceptance: "not_certified"</code>. Runtime failures return a nonzero exit and a JSON error; argument-parser errors remain on stderr. JSON mode disables animation and color without changing execution.</p>
+          <p><code>--json</code> emits one versioned final object on stdout: runtime status, final text, reasoning turns, tool count, token usage, agent duration, Laya backend and <code>tadpole_croaks</code>. Croaks come from actual nontruncated summon results, not model prose; no summons means an empty array. Successful results explicitly say <code>acceptance: "not_certified"</code>. Runtime failures return a nonzero exit and a JSON error; argument-parser errors remain on stderr. JSON mode disables animation and color without changing execution.</p>
           <p>Final tool counts and usage include tadpoles. <code>inference_calls</code> counts shared reserved requests; <code>usage_complete</code> flags whether all supplied response usage. Failed or cancelled requests may still incur provider charges. Runtime errors retain observed inference totals once initialized. Metadata events use <code>summoned</code>, <code>tadpole</code> with nested <code>detail</code>, and <code>croak</code>; terminal feedback shows Summoning and Croak markers without logging objectives or reports.</p>
           <p><code>--plain</code> disables color and animation. <code>NO_COLOR</code>, even empty, disables colors but retains the interactive spinner. Pipes, <code>TERM=dumb</code> and JSON event mode disable both automatically. Active lines clear on completion, errors, deadlines and Ctrl+C; no alternate screen or hidden cursor is used.</p>
-          <p>Stdout contains the final answer or init result. Stderr contains progress or metadata-only JSON events: reasoning starts, accepted plans, Laya decisions, tool outcomes, durations and token usage. File contents and tool inputs are not logged in those events; the final model answer can still quote them.</p>
+          <p>Stdout contains the final answer or init result. Stderr contains progress or metadata-only JSON events: reasoning starts, accepted plans, Laya decisions, tool outcomes, durations and token usage. File contents and tool inputs are not logged in those events; final text and structured croaks can contain source excerpts or patches. Treat stdout as potentially sensitive.</p>
         </section>
         <section id="inference" class="chapter">
           <h2>The model can live elsewhere.<br><em>Control can’t.</em></h2>

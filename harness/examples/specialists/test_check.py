@@ -34,7 +34,25 @@ class CheckExamples(unittest.TestCase):
                     events.extend({"event": "tadpole", "id": worker, "detail": detail}
                                   for detail in details)
                     events.append({"event": "croak", "id": worker, "status": "returned"})
-                result = {"status": "completed", "usage_complete": True}
+                reports = []
+                for worker in (("scout", "analyst") if mode == "both" else (mode,)):
+                    paths = {"readme": "README.md", "greeting_source": "src/greeting.rs",
+                             "greeting_test": "tests/greeting.rs"} if worker == "scout" else {
+                                 "inline_formatting_not_greeting_call": "tests/greeting.rs"}
+                    findings = []
+                    for finding_id, path in paths.items():
+                        lines = (source / path).read_text().splitlines()
+                        findings.append({"id": finding_id, "kind": "observation",
+                                         "statement": "Fixture observation", "path": path,
+                                         "start_line": 1, "end_line": len(lines),
+                                         "excerpt": "\n".join(lines)})
+                    reports.append({"id": worker, "status": "returned",
+                                    "contract": {"baseline_complete": True, "citations_verified": True,
+                                                 "citation_subjects_required": len(findings),
+                                                 "citation_subjects_complete": True},
+                                    "findings": {"citations_verified": True, "claims_certified": False,
+                                                 "findings": findings}})
+                result = {"status": "completed", "usage_complete": True, "tadpole_croaks": reports}
                 (fixture / "result.json").write_text(json.dumps(result))
 
                 def write_events(items):
@@ -43,6 +61,27 @@ class CheckExamples(unittest.TestCase):
 
                 write_events(events)
                 check(mode, fixture, source)
+                for key, value in [("tadpole_croaks", []), ("usage_complete", False)]:
+                    invalid = dict(result, **{key: value})
+                    (fixture / "result.json").write_text(json.dumps(invalid))
+                    with self.assertRaises(AssertionError):
+                        check(mode, fixture, source)
+                for field, value in [("excerpt", "invented"), ("path", "outside.rs"),
+                                     ("start_line", 2), ("kind", "inference")]:
+                    invalid = json.loads(json.dumps(result))
+                    invalid["tadpole_croaks"][0]["findings"]["findings"][0][field] = value
+                    (fixture / "result.json").write_text(json.dumps(invalid))
+                    with self.assertRaises(AssertionError):
+                        check(mode, fixture, source)
+                for field, value in [("citations_verified", False),
+                                     ("citation_subjects_complete", False),
+                                     ("citation_subjects_required", 0)]:
+                    invalid = json.loads(json.dumps(result))
+                    invalid["tadpole_croaks"][0]["contract"][field] = value
+                    (fixture / "result.json").write_text(json.dumps(invalid))
+                    with self.assertRaises(AssertionError):
+                        check(mode, fixture, source)
+                (fixture / "result.json").write_text(json.dumps(result))
                 with tempfile.TemporaryDirectory() as logs:
                     output = pathlib.Path(logs)
                     for filename in ("events.jsonl", "result.json"):

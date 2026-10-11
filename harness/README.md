@@ -138,7 +138,8 @@ Success fields:
   },
   "duration_ms": 0,
   "stop_reason": "end_turn",
-  "laya_backend": "local-evidence"
+  "laya_backend": "local-evidence",
+  "tadpole_croaks": []
 }
 ```
 
@@ -151,8 +152,10 @@ provider is initialized, or null beforehand. `usage_complete` is false if any
 reserved request failed or was cancelled; charges for those requests may still
 exist at the provider. Argument-parsing errors retain Clap's stderr output;
 they do not enter the JSON runtime contract. Error diagnostics also go to stderr
-and are not JSON event records. Final text may contain workspace content even
-when event traces omit it.
+and are not JSON event records. `tadpole_croaks` contains actual parent-visible,
+nontruncated summon results, not croaks reconstructed from model prose. Final
+text and croaks may contain workspace content (including excerpts and patches)
+even when metadata event traces omit it. Treat stdout as potentially sensitive.
 
 ## Execution architecture
 
@@ -186,6 +189,16 @@ natural-language acceptance criteria.
 
 The original conventional `Agent` remains available for offline comparison.
 `sb` uses `PlannedAgent`; there is no CLI switch to disable Laya.
+
+Planning exposes each registered tool's typed input, rather than a free-form
+`input` object and unconstrained tool name. Azure sends `strict: true` for
+`submit_plan` and `parallel_tool_calls: false`. The latter limits model function
+calls, not Rust's independent read concurrency or asynchronous Tadpoles.
+Azure's supported schema subset omits length/numeric bounds; Rust still
+enforces the original bounds, policy, dependencies and evidence guards.
+Unsupported strict-output deployments/APIs fail explicitly, without a silent
+non-strict fallback. The offline doctor and synthetic chat probe do not certify
+strict function-call compatibility.
 
 ## Tadpoles: summon, investigate, croak
 
@@ -287,6 +300,75 @@ model-authored and the parent must verify it. Metadata adds a child
 Offline fixtures demonstrate both contracts returning after one reasoning call
 per child; no representative comparative performance result is established.
 
+### Citation-backed findings
+
+Scout and analyst workers can call `submit_findings` after successful scoped
+`read_file` calls. Each submission has 1–6 findings: a unique ASCII `id` (up to
+48 bytes), `kind` (`observation` or `inference`), model-authored `statement`
+(up to 512 bytes), workspace `path` (up to 4096 bytes), and positive inclusive
+`start_line`/`end_line`. Read first, inspect results, then construct a separate
+plan using `guard: {"kind":"cited_findings"}`.
+
+Omit `excerpt`: Rust attaches the exact selected lines, joined with LF without
+the trailing LF (CRLF normalized). Selected text must contain 1–1024 bytes.
+An optional supplied excerpt must match exactly; guessed quotes are rejected.
+Rust requires prior successful read evidence, checks scope/protected paths and
+fresh whole-file contents, and rejects stale evidence. Laya checks the typed
+result; Rust independently enforces the same guard. None of this certifies the
+statement's interpretation, causality, test execution or measured coverage.
+
+For a complete, predetermined evidence shape, the parent may declare
+`citation_subjects` on a scout/analyst summon. Each subject fixes `id`, `kind`,
+`path`, `start_line` and `end_line`. The child then submits an object keyed by
+every declared ID, each containing `statement` only:
+
+```json
+{
+  "steps": [{
+    "id": "cite",
+    "tool": "submit_findings",
+    "input": {"findings": {"greeting_test": {"statement": "This test asserts inline formatting."}}},
+    "depends_on": [],
+    "guard": {"kind": "cited_findings"}
+  }]
+}
+```
+
+Rust fills the fixed references and exact excerpts; missing/extra IDs or
+attempted reference overrides fail. The child must still read each file first.
+At most six subjects are allowed, within the existing file/scope and tool
+limits. An incomplete required subject set blocks the croak, with
+`contract.citation_subjects_required` and
+`contract.citation_subjects_complete` explaining the boundary. With no subjects,
+the flexible findings array and baseline-based returned status remain.
+Subjects represent the caller's declared evidence requirement, not Rust's
+semantic understanding of the objective.
+
+For example, attach this declaration to the worker in `summon_tadpoles`:
+
+```json
+{
+  "citation_subjects": [{
+    "id": "greeting_test",
+    "kind": "observation",
+    "path": "tests/greeting.rs",
+    "start_line": 1,
+    "end_line": 4
+  }]
+}
+```
+
+The latest accepted submission from a completed plan becomes `croak.findings`,
+with `contract.citations_verified: true`,
+`finding_status: "citations_verified_claims_not_certified"` and
+`claims_certified: false`. Missing, rejected, truncated or interrupted-plan
+submissions remain `unverified`; prose cannot upgrade them. Baseline-complete
+scouts/analysts without declared subjects can still have `status: "returned"` with unverified findings:
+returned is not an acceptance certificate. Generic workers and coders do not
+receive this tool. Full findings are retained when incidental evidence/samples
+must be omitted; an oversized combined croak fails explicitly instead of
+silently dropping verified findings.
+
 ### Runnable scout and test-analyst examples
 
 From the repository root, with installed `sb`, Python 3 and Azure configured for
@@ -309,11 +391,21 @@ formatting rather than invoking `src/greeting.rs`. The fixture has no Cargo
 manifest and is not an executable test project; no execution or measured
 coverage claim is justified.
 
+These prompts declare the required subjects as structured summon input, not
+just prose instructions. Rust fixes each result's references; reasoning supplies
+the statements. `check.py` independently compares those references with the
+checked-in fixture, so a model-altered declaration cannot pass unnoticed.
+
 `check.py` checks actual metadata for exact baseline steps, successful tools
 and matching Laya evidence decisions before first child reasoning. It requires
-returned croaks, complete received-response usage, no write/proposal tool events,
-an unchanged file set and byte-for-byte fixture equality. It does **not** certify
-the model's prose. Compare citations and claims against the fixture.
+returned structured croaks with accepted citations, unique finding IDs,
+paths, full-file ranges and excerpts. The analyst's cited fixture must contain
+the inline formatting assertion and no direct `greeting(...)` call. It also
+requires complete received-response usage, no write/proposal tools, an unchanged
+file set and byte-for-byte fixture equality. These are fixture-specific
+acceptance checks, not semantic certification of the model's prose or arbitrary
+repositories. Model deviations or exhausted budgets fail explicitly; real
+inference is not guaranteed to satisfy the example on every run.
 
 ```sh
 # Offline checker regression; no model calls.
@@ -412,6 +504,7 @@ checks; neither coder nor test-analyst runs commands or certifies coverage.
 | `write_file` | Opt-in atomic create or compare-before-replace; existing parent required |
 | `summon_tadpoles` | Bounded read-only Laya workers; structured noncertified croaks |
 | `propose_patch` | Coder-only, non-mutating existing-file replacement proposal |
+| `submit_findings` | Scout/analyst-only, scoped exact citations; claims remain uncertified |
 | `apply_tadpole_patch` | Parent-only, opt-in application by saved proposal ID |
 
 Writes require `--allow-write`. For creation, `expected_content` must be null.

@@ -11,6 +11,7 @@ pub enum EvidenceGuard {
     TextContains { value: String },
     Discovery { shape: DiscoveryShape },
     PatchProposal,
+    CitedFindings,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -54,6 +55,47 @@ impl EvidenceGuard {
             Self::TextEquals { value } => evidence.output == value,
             Self::TextContains { value } if !value.is_empty() => evidence.output.contains(value),
             Self::TextContains { .. } => return GuardCheck::Insufficient,
+            Self::CitedFindings => {
+                let Ok(value) = serde_json::from_str::<serde_json::Value>(evidence.output) else {
+                    return GuardCheck::Failed;
+                };
+                let mut ids = std::collections::HashSet::new();
+                value["version"] == 1
+                    && value["citations_verified"] == true
+                    && value["claims_certified"] == false
+                    && value["findings"].as_array().is_some_and(|items| {
+                        !items.is_empty()
+                            && items.len() <= 6
+                            && items.iter().all(|item| {
+                                item["id"].as_str().is_some_and(|id| {
+                                    !id.is_empty()
+                                        && id.len() <= 48
+                                        && id.bytes().all(|b| {
+                                            b.is_ascii_alphanumeric() || b"-_".contains(&b)
+                                        })
+                                        && ids.insert(id)
+                                }) && matches!(
+                                    item["kind"].as_str(),
+                                    Some("observation" | "inference")
+                                ) && item["statement"].as_str().is_some_and(|text| {
+                                    !text.trim().is_empty()
+                                        && text.len() <= 512
+                                        && !text.contains('\0')
+                                }) && item["path"]
+                                    .as_str()
+                                    .is_some_and(|path| !path.is_empty() && path.len() <= 4096)
+                                    && item["start_line"].as_u64().is_some_and(|start| {
+                                        start > 0
+                                            && item["end_line"]
+                                                .as_u64()
+                                                .is_some_and(|end| end >= start)
+                                    })
+                                    && item["excerpt"]
+                                        .as_str()
+                                        .is_some_and(|text| !text.is_empty() && text.len() <= 1024)
+                            })
+                    })
+            }
             Self::PatchProposal => {
                 let Ok(value) = serde_json::from_str::<serde_json::Value>(evidence.output) else {
                     return GuardCheck::Failed;

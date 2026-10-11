@@ -20,6 +20,11 @@ Configuration stays outside the workspace and contains no credentials.
 bounded prompts from stdin; `--json` returns a versioned final result for scripts.
 Read-only **tadpoles** run the same required Laya loop: the parent summons
 bounded independent workers and receives structured **croaks** to verify.
+
+Scout and test-analyst croaks can carry structured findings with scoped paths,
+line ranges and Rust-attached exact excerpts. Laya gates citation integrity,
+not interpretation. Runnable specialist examples check expected fixture
+findings as well as runtime boundaries; prose alone is never proof.
 `--max-tadpoles` caps workers; `--max-inference-calls` caps parent and child
 requests together. No recursive summoning or child writes are allowed.
 Specialized `repository_scout` and `test_analyst` tadpoles use Rust-authored

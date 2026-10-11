@@ -113,20 +113,87 @@ fn encode(request: &CompletionRequest<'_>) -> Result<Value> {
     }
     let mut body = json!({"messages": messages, "max_completion_tokens": request.max_tokens});
     if !request.tools.is_empty() {
-        body["tools"] = json!(request
-            .tools
-            .iter()
-            .map(|tool| json!({
-                "type": "function",
-                "function": {
-                    "name": tool.name, "description": tool.description,
-                    "parameters": tool.input_schema
-                }
-            }))
-            .collect::<Vec<_>>());
+        let mut tools = Vec::new();
+        for tool in request.tools {
+            let mut function = json!({"name":tool.name,"description":tool.description,
+                "parameters":tool.input_schema});
+            if tool.name == "submit_plan" {
+                function["parameters"] = strict_plan_schema(&tool.input_schema)?;
+                function["strict"] = json!(true);
+                body["parallel_tool_calls"] = json!(false);
+            }
+            tools.push(json!({"type":"function","function":function}));
+        }
+        body["tools"] = json!(tools);
         body["tool_choice"] = json!("auto");
     }
     Ok(body)
+}
+
+// Azure's strict subset excludes bounds; Rust still enforces the original contract.
+fn strict_plan_schema(schema: &Value) -> Result<Value> {
+    let mut object = schema
+        .as_object()
+        .context("strict planning schema must be an object")?
+        .clone();
+    for key in [
+        "minLength",
+        "maxLength",
+        "minimum",
+        "maximum",
+        "minItems",
+        "maxItems",
+    ] {
+        object.remove(key);
+    }
+    if let Some(value) = object.remove("const") {
+        object.insert("enum".into(), json!([value]));
+    }
+    if let Some(value) = object.remove("oneOf") {
+        object.insert("anyOf".into(), value);
+    }
+    if !object.contains_key("type")
+        && object
+            .get("enum")
+            .and_then(Value::as_array)
+            .is_some_and(|values| values.iter().all(Value::is_string))
+    {
+        object.insert("type".into(), json!("string"));
+    }
+    for key in ["properties", "$defs"] {
+        if let Some(values) = object.get_mut(key) {
+            for value in values
+                .as_object_mut()
+                .context("invalid strict schema definitions")?
+                .values_mut()
+            {
+                *value = strict_plan_schema(value)?;
+            }
+        }
+    }
+    if let Some(items) = object.get_mut("items") {
+        *items = strict_plan_schema(items)?;
+    }
+    if let Some(choices) = object.get_mut("anyOf") {
+        for choice in choices
+            .as_array_mut()
+            .context("invalid strict schema alternatives")?
+        {
+            *choice = strict_plan_schema(choice)?;
+        }
+    }
+    if object.get("type") == Some(&json!("object")) {
+        let properties = object.entry("properties").or_insert_with(|| json!({}));
+        let required: Vec<_> = properties
+            .as_object()
+            .context("invalid strict schema properties")?
+            .keys()
+            .cloned()
+            .collect();
+        object.insert("required".into(), json!(required));
+        object.insert("additionalProperties".into(), json!(false));
+    }
+    Ok(Value::Object(object))
 }
 
 fn decode(body: Value) -> Result<CompletionResponse> {
@@ -267,6 +334,54 @@ mod tests {
     }
 
     #[test]
+    fn strict_planning_closes_typed_inputs_without_changing_other_tool_calls() {
+        let tools = [ToolSpec {
+            name: "submit_plan".into(),
+            description: "fixture".into(),
+            input_schema: json!({"type":"object","additionalProperties":false,
+            "required":["steps"],"properties":{"steps":{"type":"array","maxItems":16,
+                "items":{"type":"object","properties":{
+                    "tool":{"const":"read_file"},
+                    "input":{"type":"object","properties":{"path":{"type":"string","maxLength":4096},
+                        "excerpt":{"type":["string","null"]}}},
+                    "guard":{"oneOf":[{"type":"object","properties":{"kind":{"const":"tool_succeeded"}}}]}
+                }}}}}),
+        }];
+        let body = encode(&CompletionRequest {
+            system: "fixture",
+            messages: &[],
+            tools: &tools,
+            max_tokens: 2048,
+        })
+        .unwrap();
+        assert_eq!(body["tools"][0]["function"]["strict"], true);
+        assert_eq!(body["parallel_tool_calls"], false);
+        assert_eq!(body["max_completion_tokens"], 2048);
+        let schema = &body["tools"][0]["function"]["parameters"];
+        assert!(schema["properties"]["steps"].get("maxItems").is_none());
+        let step = &schema["properties"]["steps"]["items"];
+        assert_eq!(step["required"], json!(["guard", "input", "tool"]));
+        assert_eq!(step["additionalProperties"], false);
+        assert_eq!(
+            step["properties"]["tool"],
+            json!({"type":"string","enum":["read_file"]})
+        );
+        let input = &step["properties"]["input"];
+        assert_eq!(input["required"], json!(["excerpt", "path"]));
+        assert_eq!(input["additionalProperties"], false);
+        assert_eq!(
+            input["properties"]["excerpt"]["type"],
+            json!(["string", "null"])
+        );
+        assert!(input["properties"]["path"].get("maxLength").is_none());
+        assert!(step["properties"]["guard"].get("oneOf").is_none());
+        assert_eq!(
+            step["properties"]["guard"]["anyOf"][0]["required"],
+            json!(["kind"])
+        );
+    }
+
+    #[test]
     fn translates_tool_roundtrip_and_usage() {
         let messages = vec![
             Message::user_text("read"),
@@ -305,6 +420,11 @@ mod tests {
         );
         assert_eq!(encoded["messages"][3]["role"], "tool");
         assert_eq!(encoded["max_completion_tokens"], 100);
+        assert!(encoded["tools"][0]["function"].get("strict").is_none());
+        assert_eq!(
+            encoded["tools"][0]["function"]["parameters"],
+            tools[0].input_schema
+        );
         let decoded = decode(response(
             json!({"role": "assistant", "content": null,
             "tool_calls": [{"id": "call-2", "type": "function",

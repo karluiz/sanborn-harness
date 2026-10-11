@@ -293,6 +293,7 @@ async fn run_with_feedback(
         return Ok(Some(serde_json::json!({
             "schema_version": 1, "status": "completed", "acceptance": "not_certified",
             "final_text": outcome.final_text, "turns": outcome.turns, "tool_calls": tool_calls,
+            "tadpole_croaks":sanborn_core::tadpole::croaks_from_messages(&outcome.messages),
             "usage": provider.stats().usage, "inference_calls": provider.stats().calls,
             "usage_complete": provider.stats().calls == provider.stats().completed_calls,
             "duration_ms": started.elapsed().as_millis(),

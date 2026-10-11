@@ -55,7 +55,12 @@ fn coder_proposes_then_parent_applies_with_laya() {
                 && e["tool"] == "apply_tadpole_patch"
                 && e["is_error"] == false
         })
-        .unwrap();
+        .unwrap_or_else(|| {
+            panic!(
+                "No successful parent application. Synthetic trace: {trace}\nResult: {}",
+                String::from_utf8_lossy(&output.stdout)
+            )
+        });
     assert!(events[apply + 1..]
         .iter()
         .any(|e| e["event"] == "tool_finished"
@@ -286,13 +291,75 @@ fn specialist_contracts_execute_baselines_before_child_reasoning() {
                 .count(),
             count
         );
-        assert!(events
-            .iter()
-            .any(|e| e["event"] == "croak" && e["id"] == id && e["status"] == "returned"));
+        assert!(
+            events
+                .iter()
+                .any(|e| e["event"] == "croak" && e["id"] == id && e["status"] == "returned"),
+            "missing returned {id} croak; synthetic output: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
     }
     let result: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(result["status"], "completed");
     assert_eq!(result["usage_complete"], true);
+    let croaks = result["tadpole_croaks"].as_array().unwrap();
+    assert_eq!(croaks.len(), 2);
+    for (id, expected) in [
+        (
+            "scout",
+            vec![
+                (
+                    "README.md",
+                    include_str!("../../../examples/specialists/fixture/README.md"),
+                ),
+                (
+                    "src/greeting.rs",
+                    include_str!("../../../examples/specialists/fixture/src/greeting.rs"),
+                ),
+                (
+                    "tests/greeting.rs",
+                    include_str!("../../../examples/specialists/fixture/tests/greeting.rs"),
+                ),
+            ],
+        ),
+        (
+            "analyst",
+            vec![(
+                "tests/greeting.rs",
+                include_str!("../../../examples/specialists/fixture/tests/greeting.rs"),
+            )],
+        ),
+    ] {
+        let croak = croaks.iter().find(|croak| croak["id"] == id).unwrap();
+        assert_eq!(croak["contract"]["citations_verified"], true, "{croak}");
+        assert_eq!(
+            croak["contract"]["citation_subjects_required"],
+            expected.len()
+        );
+        assert_eq!(croak["contract"]["citation_subjects_complete"], true);
+        assert_eq!(croak["findings"]["claims_certified"], false);
+        let findings = croak["findings"]["findings"].as_array().unwrap();
+        assert_eq!(findings.len(), expected.len());
+        let ids: std::collections::HashSet<_> = findings
+            .iter()
+            .map(|finding| finding["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(ids.len(), findings.len());
+        for (path, text) in expected {
+            let finding = findings
+                .iter()
+                .find(|finding| finding["path"] == path)
+                .unwrap();
+            assert_eq!(finding["path"], path);
+            assert_eq!(finding["kind"], "observation");
+            assert_eq!(finding["start_line"], 1);
+            assert_eq!(finding["end_line"], text.lines().count());
+            assert_eq!(
+                finding["excerpt"],
+                text.lines().collect::<Vec<_>>().join("\n")
+            );
+        }
+    }
     assert_eq!(
         std::fs::read_to_string(root.path().join("tests/greeting.rs")).unwrap(),
         include_str!("../../../examples/specialists/fixture/tests/greeting.rs")

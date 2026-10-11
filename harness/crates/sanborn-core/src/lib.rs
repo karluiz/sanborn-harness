@@ -1,6 +1,7 @@
 //! Core runtime for the Sanborn agent harness.
 
 pub mod agent;
+pub mod findings;
 pub mod message;
 pub mod plan;
 pub mod provider;

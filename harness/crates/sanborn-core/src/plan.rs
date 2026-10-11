@@ -177,7 +177,8 @@ impl PlannedAgent {
              A plan contains at most {MAX_PLAN_STEPS} ordered steps. \
              Each step has an id, tool, fixed JSON input, depends_on (earlier IDs only), and guard. \
              Guards are tool_succeeded, text_equals with value, text_contains with nonempty value, \
-             discovery with shape file_list/search_matches, or patch_proposal for coder proposal evidence. \
+             discovery with shape file_list/search_matches, patch_proposal for coder proposals, \
+             or cited_findings for structured citation evidence (never semantic certification). \
              Guards only validate tool evidence; they never prove task completion. \
              Steps cannot reference or interpolate outputs of future tools. Read and inspect first \
              if edits need unknown contents, then submit another plan. \
@@ -194,7 +195,11 @@ impl PlannedAgent {
              Final prose ends the run. No shell tool is available.",
             serde_json::to_string(&available)?
         );
-        let specs = [plan_spec()];
+        let specs = if available.is_empty() {
+            Vec::new()
+        } else {
+            vec![plan_spec(&available)]
+        };
         let mut messages = vec![Message::user_text(task)];
         let mut usage = Usage::default();
         let mut tool_calls = 0;
@@ -316,8 +321,25 @@ impl PlannedAgent {
         )
     }
 
+    /// Executes one Rust-authored plan with the same validation, policy and Laya
+    /// gates as model plans, without any reasoning turn. Returns the plan result JSON.
+    pub async fn execute_trusted_plan(
+        &self,
+        input: Value,
+        mut on_event: impl FnMut(&PlanEvent) + Send,
+    ) -> Result<String> {
+        let plan = self.validate_plan(input)?;
+        let mut tool_calls = 0;
+        self.execute_plan(&plan, &mut tool_calls, &mut on_event)
+            .await
+    }
+
     fn validate_plan(&self, input: Value) -> Result<Plan> {
-        let plan: Plan = serde_json::from_value(input).context("invalid plan JSON")?;
+        let plan: Plan = serde_json::from_value(input).context(
+            "invalid plan JSON; submit_plan requires steps containing id, tool, input, depends_on and guard. \
+             Shape: {\"steps\":[{\"id\":\"step-id\",\"tool\":\"registered-tool-name\",\"input\":{...},\"depends_on\":[],\"guard\":{\"kind\":\"required-evidence-guard\"}}]}. \
+             Tool-specific arguments belong inside input, not directly inside steps",
+        )?;
         if plan.steps.is_empty() || plan.steps.len() > MAX_PLAN_STEPS {
             bail!("plan needs 1 to {MAX_PLAN_STEPS} steps");
         }
@@ -351,6 +373,9 @@ impl PlannedAgent {
             }
             if step.tool == "propose_patch" && step.guard != EvidenceGuard::PatchProposal {
                 bail!("propose_patch requires the patch_proposal evidence guard");
+            }
+            if step.tool == "submit_findings" && step.guard != EvidenceGuard::CitedFindings {
+                bail!("submit_findings requires the cited_findings evidence guard");
             }
             if matches!(&step.guard, EvidenceGuard::TextContains { value } if value.is_empty()) {
                 bail!("text_contains guard must not be empty");
@@ -567,36 +592,55 @@ impl PlannedAgent {
     }
 }
 
-fn plan_spec() -> ToolSpec {
+fn plan_spec(available: &[ToolSpec]) -> ToolSpec {
+    let mut schema = json!({
+        "type": "object", "additionalProperties": false, "required": ["steps"],
+        "properties": {"steps": {"type": "array", "minItems": 1, "maxItems": MAX_PLAN_STEPS,
+            "items": {"type": "object", "additionalProperties": false,
+                "required": ["id", "tool", "input", "depends_on", "guard"],
+                "properties": {
+                    "id": {"type": "string", "minLength": 1, "maxLength": 64},
+                    "tool": {"type": "string"}, "input": {"type": "object"},
+                    "depends_on": {"type": "array", "items": {"type": "string"}},
+                    "guard": {"oneOf": [
+                        {"type":"object","additionalProperties":false,"required":["kind"],
+                            "properties":{"kind":{"const":"cited_findings"}}},
+                        {"type": "object", "additionalProperties": false, "required": ["kind"],
+                            "properties": {"kind": {"const": "patch_proposal"}}},
+                        {"type": "object", "additionalProperties": false, "required": ["kind"],
+                            "properties": {"kind": {"const": "tool_succeeded"}}},
+                        {"type": "object", "additionalProperties": false, "required": ["kind", "value"],
+                            "properties": {"kind": {"const": "text_equals"}, "value": {"type": "string"}}},
+                        {"type": "object", "additionalProperties": false, "required": ["kind", "value"],
+                            "properties": {"kind": {"const": "text_contains"}, "value": {"type": "string", "minLength": 1}}},
+                        {"type": "object", "additionalProperties": false, "required": ["kind", "shape"],
+                            "properties": {"kind": {"const": "discovery"},
+                                "shape": {"enum": ["file_list", "search_matches"]}}}
+                    ]}
+                }
+            }
+        }}
+    });
+    let template = schema["properties"]["steps"]["items"].clone();
+    schema["$defs"] = json!({"evidence_guard":template["properties"]["guard"]});
+    let steps: Vec<_> = available.iter().map(|tool| {
+        let mut step = template.clone();
+        step["properties"]["tool"] = json!({"type":"string","enum":[tool.name]});
+        step["properties"]["input"] = tool.input_schema.clone();
+        step["properties"]["guard"] = match tool.name.as_str() {
+            "submit_findings" => json!({"type":"object","additionalProperties":false,
+                "required":["kind"],"properties":{"kind":{"type":"string","enum":["cited_findings"]}}}),
+            "propose_patch" => json!({"type":"object","additionalProperties":false,
+                "required":["kind"],"properties":{"kind":{"type":"string","enum":["patch_proposal"]}}}),
+            _ => json!({"$ref":"#/$defs/evidence_guard"}),
+        };
+        step
+    }).collect();
+    schema["properties"]["steps"]["items"] = json!({"anyOf":steps});
     ToolSpec {
         name: "submit_plan".into(),
-        description: "Submit a bounded ordered tool plan. Rust checks tools, dependencies and permissions; Laya checks transitions and evidence.".into(),
-        input_schema: json!({
-            "type": "object", "additionalProperties": false, "required": ["steps"],
-            "properties": {"steps": {"type": "array", "minItems": 1, "maxItems": MAX_PLAN_STEPS,
-                "items": {"type": "object", "additionalProperties": false,
-                    "required": ["id", "tool", "input", "depends_on", "guard"],
-                    "properties": {
-                        "id": {"type": "string", "minLength": 1, "maxLength": 64},
-                        "tool": {"type": "string"}, "input": {"type": "object"},
-                        "depends_on": {"type": "array", "items": {"type": "string"}},
-                        "guard": {"oneOf": [
-                            {"type": "object", "additionalProperties": false, "required": ["kind"],
-                                "properties": {"kind": {"const": "patch_proposal"}}},
-                            {"type": "object", "additionalProperties": false, "required": ["kind"],
-                                "properties": {"kind": {"const": "tool_succeeded"}}},
-                            {"type": "object", "additionalProperties": false, "required": ["kind", "value"],
-                                "properties": {"kind": {"const": "text_equals"}, "value": {"type": "string"}}},
-                            {"type": "object", "additionalProperties": false, "required": ["kind", "value"],
-                                "properties": {"kind": {"const": "text_contains"}, "value": {"type": "string", "minLength": 1}}},
-                            {"type": "object", "additionalProperties": false, "required": ["kind", "shape"],
-                                "properties": {"kind": {"const": "discovery"},
-                                    "shape": {"enum": ["file_list", "search_matches"]}}}
-                        ]}
-                    }
-                }
-            }}
-        }),
+        description: "Submit a bounded ordered plan using the registered tool's typed input and evidence guard. Rust checks tools, dependencies and permissions; Laya checks transitions and evidence.".into(),
+        input_schema: schema,
     }
 }
 
@@ -610,6 +654,42 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct CountingTool(Arc<AtomicUsize>, ToolKind);
+
+    #[test]
+    fn planning_schema_selects_registered_tool_inputs_and_required_findings_guard() {
+        let available = [
+            ToolSpec {
+                name: "read_file".into(),
+                description: "fixture".into(),
+                input_schema: json!({"type":"object","required":["path"],
+                    "properties":{"path":{"type":"string"}},"additionalProperties":false}),
+            },
+            ToolSpec {
+                name: "submit_findings".into(),
+                description: "fixture".into(),
+                input_schema: json!({"type":"object","required":["findings"],
+                    "properties":{"findings":{"type":"object"}},"additionalProperties":false}),
+            },
+        ];
+        let spec = plan_spec(&available);
+        let choices = spec.input_schema["properties"]["steps"]["items"]["anyOf"]
+            .as_array()
+            .unwrap();
+        assert_eq!(choices.len(), 2);
+        for (choice, tool) in choices.iter().zip(&available) {
+            assert_eq!(choice["properties"]["tool"]["enum"], json!([tool.name]));
+            assert_eq!(choice["properties"]["input"], tool.input_schema);
+        }
+        assert_eq!(
+            choices[1]["properties"]["guard"]["properties"]["kind"]["enum"],
+            json!(["cited_findings"])
+        );
+        assert_eq!(
+            choices[0]["properties"]["guard"]["$ref"],
+            "#/$defs/evidence_guard"
+        );
+    }
+
     #[async_trait]
     impl Tool for CountingTool {
         fn spec(&self) -> ToolSpec {
