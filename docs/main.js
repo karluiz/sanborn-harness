@@ -1,12 +1,12 @@
 const nodes = {
-  client: ['CLI / client', 'Supplies the task, workspace and acceptance criteria. The user’s objective stays authoritative; a generated plan never replaces it.', 'The complete runnable CLI is proposed, not present in the scaffold.'],
+  client: ['CLI / client', 'sb -p supplies the task and workspace. The user’s objective stays authoritative; a generated plan never replaces it.', 'The first CLI slice supports file tools, not arbitrary shell execution.'],
   runtime: ['Rust runtime', 'Owns state, budgets and cancellation. Continues validated plan steps locally; asks for reasoning when the evidence or plan no longer holds.', 'Completing a plan is not proof of task success.'],
   policy: ['Permission gate', 'Checks every ready step against the run policy. A recommendation to continue does not change what the run is allowed to do.', 'Policy flags and path checks are not an operating-system sandbox.'],
   scheduler: ['Tool scheduler', 'Bounds concurrent independent reads and orders mutations. A step becomes ready only when its explicit dependencies are satisfied.', 'Dependent operations cannot be made safe by calling them parallel.'],
   state: ['Results & state', 'Records outputs, errors and acceptance evidence. The proposed cache reuses results only while their validity is known.', 'Edits invalidate affected reads. Shell commands conservatively invalidate workspace-derived results.'],
-  laya: ['Laya decision adapter', 'Asks whether evidence needs replanning. Returns Continue, Replan or explicit Absent. Shadow mode records advice without changing execution.', 'Advice never grants permissions, invents edits or certifies success.'],
+  laya: ['Laya decision layer', 'A required part of the planned runner. Returns Continue, Replan or explicit Absent. The first local evaluator checks exact evidence guards; learned backend embedding comes later.', 'Advice never grants permissions, invents edits or certifies success.'],
   reasoning: ['Reasoning adapter', 'Calls a model for missing plans, ambiguity or unexpected evidence. Its returned plan must be validated before execution.', 'An avoided call is an optimization, not permission to skip necessary reasoning.'],
-  servers: ['Inference servers', 'Potential Foundry providers for reasoning or typed decisions. Verify endpoint protocol, credentials and structured-output support.', 'Only approved hosts and data classes cross this boundary. Start with synthetic fixtures.'],
+  servers: ['Inference servers', 'Azure Chat Completions is connected for reasoning. Other deployments and any learned decision backend need individual protocol and capability checks.', 'Only approved hosts and data classes cross this boundary. Start with synthetic fixtures.'],
 };
 const routes = {
   all: Object.keys(nodes),
@@ -16,7 +16,7 @@ const routes = {
 };
 const routeText = {
   all: 'Select a component to inspect its responsibilities.',
-  fast: 'Execute a ready planned step through the permission gate, then record results. Optional Laya advice remains constrained by plan preconditions.',
+  fast: 'Laya evaluates each transition. Execute a ready planned step through the permission gate, then check its evidence. Rust still enforces preconditions.',
   reason: 'A missing or invalid plan calls for reasoning through an approved backend. Validate the resulting plan before execution.',
   absent: 'An unavailable or uncertain Laya decision returns to the normal reasoning loop with its reason recorded.',
 };

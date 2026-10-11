@@ -24,11 +24,17 @@ pub struct Policy {
 
 impl Policy {
     pub fn full() -> Self {
-        Self { allow_write: true, allow_execute: true }
+        Self {
+            allow_write: true,
+            allow_execute: true,
+        }
     }
 
     pub fn read_only() -> Self {
-        Self { allow_write: false, allow_execute: false }
+        Self {
+            allow_write: false,
+            allow_execute: false,
+        }
     }
 
     pub fn permits(&self, kind: ToolKind) -> bool {
@@ -96,7 +102,7 @@ impl ToolRegistry {
     }
 }
 
-/// Per-run state shared by tools: the workspace root they are confined to.
+/// Workspace path checks for tools. Not an OS sandbox or protection against races.
 #[derive(Debug, Clone)]
 pub struct ToolContext {
     workspace: PathBuf,
@@ -108,6 +114,9 @@ impl ToolContext {
         let workspace = workspace
             .canonicalize()
             .with_context(|| format!("workspace {} is not accessible", workspace.display()))?;
+        if !workspace.is_dir() {
+            bail!("workspace must be a directory");
+        }
         Ok(Self { workspace })
     }
 
@@ -119,37 +128,39 @@ impl ToolContext {
     /// for the portion that exists. Rejects anything that escapes the workspace.
     pub fn resolve(&self, path: &str) -> Result<PathBuf> {
         let raw = Path::new(path);
-        let joined = if raw.is_absolute() { raw.to_path_buf() } else { self.workspace.join(raw) };
-
-        let mut normalized = PathBuf::new();
-        for component in joined.components() {
+        let relative = if raw.is_absolute() {
+            raw.strip_prefix(&self.workspace)
+                .context("absolute path is outside the workspace")?
+        } else {
+            raw
+        };
+        let mut resolved = self.workspace.clone();
+        for component in relative.components() {
             match component {
                 Component::ParentDir => {
-                    normalized.pop();
+                    if resolved == self.workspace {
+                        bail!("path `{path}` is outside the workspace");
+                    }
+                    resolved.pop();
                 }
                 Component::CurDir => {}
-                other => normalized.push(other.as_os_str()),
-            }
-        }
-
-        let mut existing = normalized.as_path();
-        let mut rest = Vec::new();
-        while !existing.exists() {
-            match (existing.file_name(), existing.parent()) {
-                (Some(name), Some(parent)) => {
-                    rest.push(name.to_os_string());
-                    existing = parent;
+                Component::Normal(name) => {
+                    resolved.push(name);
+                    match std::fs::symlink_metadata(&resolved) {
+                        Ok(_) => {
+                            resolved = resolved
+                                .canonicalize()
+                                .with_context(|| format!("cannot resolve path `{path}`"))?;
+                        }
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                        Err(error) => return Err(error).context("cannot inspect workspace path"),
+                    }
                 }
-                _ => break,
+                _ => bail!("unsupported workspace path"),
             }
-        }
-        let mut resolved = existing.canonicalize().unwrap_or_else(|_| existing.to_path_buf());
-        for name in rest.iter().rev() {
-            resolved.push(name);
-        }
-
-        if !resolved.starts_with(&self.workspace) {
-            bail!("path `{path}` is outside the workspace");
+            if !resolved.starts_with(&self.workspace) {
+                bail!("path `{path}` is outside the workspace");
+            }
         }
         Ok(resolved)
     }
@@ -158,6 +169,42 @@ impl ToolContext {
     pub fn display(&self, path: &Path) -> String {
         let rel = path.strip_prefix(&self.workspace).unwrap_or(path);
         let s = rel.to_string_lossy();
-        if s.is_empty() { ".".to_string() } else { s.into_owned() }
+        if s.is_empty() {
+            ".".to_string()
+        } else {
+            s.into_owned()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolves_new_paths_and_rejects_escape() {
+        let root = tempfile::tempdir().unwrap();
+        let ctx = ToolContext::new(root.path()).unwrap();
+        assert_eq!(
+            ctx.resolve("new/file.txt").unwrap(),
+            root.path().join("new/file.txt")
+        );
+        assert!(ctx.resolve("../outside").is_err());
+        assert!(ctx.resolve("/etc/passwd").is_err());
+        assert!(ToolContext::new(root.path().join("missing")).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_external_and_dangling_symlinks_including_parent_traversal() {
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(outside.path(), root.path().join("link")).unwrap();
+        std::os::unix::fs::symlink(outside.path().join("missing"), root.path().join("dangling"))
+            .unwrap();
+        let ctx = ToolContext::new(root.path()).unwrap();
+        for path in ["link/file", "link/../file", "dangling", "dangling/file"] {
+            assert!(ctx.resolve(path).is_err(), "{path}");
+        }
     }
 }

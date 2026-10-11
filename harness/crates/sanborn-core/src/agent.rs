@@ -34,11 +34,28 @@ impl Default for AgentConfig {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum Event {
-    TurnStarted { turn: usize },
-    AssistantText { text: String },
-    ToolCall { id: String, name: String, input: Value },
-    ToolResult { id: String, name: String, is_error: bool, duration_ms: u128 },
-    Finished { turns: usize, usage: Usage, duration_ms: u128 },
+    TurnStarted {
+        turn: usize,
+    },
+    AssistantText {
+        text: String,
+    },
+    ToolCall {
+        id: String,
+        name: String,
+        input: Value,
+    },
+    ToolResult {
+        id: String,
+        name: String,
+        is_error: bool,
+        duration_ms: u128,
+    },
+    Finished {
+        turns: usize,
+        usage: Usage,
+        duration_ms: u128,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -70,7 +87,12 @@ impl Agent {
         context: ToolContext,
         config: AgentConfig,
     ) -> Self {
-        Self { provider, tools, context, config }
+        Self {
+            provider,
+            tools,
+            context,
+            config,
+        }
     }
 
     pub async fn run(
@@ -109,7 +131,10 @@ impl Agent {
                 }
             }
 
-            let assistant = Message { role: Role::Assistant, content: response.content };
+            let assistant = Message {
+                role: Role::Assistant,
+                content: response.content,
+            };
             let final_text = assistant.text();
             messages.push(assistant);
 
@@ -136,10 +161,16 @@ impl Agent {
                 });
             }
             let results = self.execute(calls, &mut on_event).await;
-            messages.push(Message { role: Role::User, content: results });
+            messages.push(Message {
+                role: Role::User,
+                content: results,
+            });
         }
 
-        bail!("Stopped after reaching the maximum of {} turns", self.config.max_turns)
+        bail!(
+            "Stopped after reaching the maximum of {} turns",
+            self.config.max_turns
+        )
     }
 
     /// Runs tool calls in order, batching consecutive read-only calls concurrently.
@@ -182,7 +213,9 @@ impl Agent {
     }
 
     fn is_parallel_safe(&self, name: &str) -> bool {
-        self.tools.get(name).map_or(true, |tool| tool.kind() == ToolKind::Read)
+        self.tools
+            .get(name)
+            .is_none_or(|tool| tool.kind() == ToolKind::Read)
     }
 
     async fn run_one(&self, call: &Call) -> (ContentBlock, u128) {
@@ -208,7 +241,11 @@ impl Agent {
             Ok(text) => (truncate(text, MAX_TOOL_OUTPUT_BYTES), false),
             Err(text) => (text, true),
         };
-        let block = ContentBlock::ToolResult { tool_use_id: call.id.clone(), content, is_error };
+        let block = ContentBlock::ToolResult {
+            tool_use_id: call.id.clone(),
+            content,
+            is_error,
+        };
         (block, started.elapsed().as_millis())
     }
 }

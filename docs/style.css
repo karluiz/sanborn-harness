@@ -19,3 +19,16 @@ figure{margin:0;background:var(--ink);color:#d9e4cc}figcaption{font-size:9px;let
 @media(max-width:1100px) and (min-width:761px){.specimen{right:0;width:64%}.specimen-label,#motion{right:8%}}
 @media(max-width:760px){.archify-preview iframe{height:560px}.specimen-label{bottom:-35px;right:12%}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.command-block,.terminal-example{margin:28px 0}
+.chapter p code,.reference code,td code,th code{font-size:.92em;overflow-wrap:anywhere}
+.command-block pre,.terminal-example pre{max-width:100%}
+.term-progress,.term-ok{color:#bad18f}.term-plan{color:#8fd2c3}
+.text-link{text-decoration:underline;text-underline-offset:4px}
+code[class*="language-"]{color:#d9e4cc;white-space:pre;tab-size:2}
+.token.comment{color:#a8b99a;font-style:italic}
+.token.keyword,.token.boolean,.token.function{color:#bad18f}
+.token.string,.token.char,.token.attr-value{color:#e3c392}
+.token.number,.token.constant,.token.property{color:#8fd2c3}
+.token.operator,.token.punctuation{color:#c1ceae}
+.token.class-name,.token.builtin,.token.variable{color:#d6bce3}
+@media(min-width:761px){.contents>div{max-height:calc(100vh - 60px);overflow-y:auto}.contents nav{gap:0;margin:18px 0 24px}.contents nav a{padding:10px 0}}

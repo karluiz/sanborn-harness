@@ -26,7 +26,10 @@ impl ScriptedProvider {
 
     /// Conversation snapshots received on each call.
     pub fn requests(&self) -> Vec<Vec<Message>> {
-        self.requests.lock().expect("requests lock poisoned").clone()
+        self.requests
+            .lock()
+            .expect("requests lock poisoned")
+            .clone()
     }
 }
 
@@ -51,9 +54,15 @@ impl Provider for ScriptedProvider {
 
 pub fn text_response(text: &str) -> CompletionResponse {
     CompletionResponse {
-        content: vec![ContentBlock::Text { text: text.to_string() }],
+        content: vec![ContentBlock::Text {
+            text: text.to_string(),
+        }],
         stop_reason: StopReason::EndTurn,
-        usage: Usage { input_tokens: 10, output_tokens: 5, ..Usage::default() },
+        usage: Usage {
+            input_tokens: 10,
+            output_tokens: 5,
+            ..Usage::default()
+        },
     }
 }
 
@@ -69,6 +78,10 @@ pub fn tool_response(calls: &[(&str, &str, Value)]) -> CompletionResponse {
             })
             .collect(),
         stop_reason: StopReason::ToolUse,
-        usage: Usage { input_tokens: 10, output_tokens: 5, ..Usage::default() },
+        usage: Usage {
+            input_tokens: 10,
+            output_tokens: 5,
+            ..Usage::default()
+        },
     }
 }

@@ -2,6 +2,7 @@
 
 pub mod agent;
 pub mod message;
+pub mod plan;
 pub mod provider;
 pub mod testing;
 pub mod tool;

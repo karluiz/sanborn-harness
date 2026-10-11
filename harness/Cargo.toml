@@ -5,7 +5,7 @@ members = ["crates/*"]
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.80"
+rust-version = "1.88"
 
 [workspace.dependencies]
 anyhow = "1"
@@ -24,6 +24,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "fs
 sanborn-core = { path = "crates/sanborn-core" }
 sanborn-models = { path = "crates/sanborn-models" }
 sanborn-tools = { path = "crates/sanborn-tools" }
+sanborn-laya = { path = "crates/sanborn-laya" }
 
 [profile.release]
 lto = "thin"

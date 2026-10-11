@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#15251c">
-  <meta name="description" content="Inside Sanborn: the proposed Rust harness, Laya decision boundary, and the experiments that must prove a faster path to correct work.">
+  <meta name="description" content="The Sanborn field manual: sb init, the Rust and Laya execution loop, guarded tools, terminal feedback, and the evidence behind the first runnable slice.">
   <title>Inside Sanborn — The field manual</title>
   <link rel="icon" href="../public/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
+  <script defer src="./prism.js"></script>
   <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}</script>
 </head>
 <body>
@@ -36,7 +37,7 @@
         <button id="motion" type="button" aria-pressed="false" hidden>Pause sculpture</button>
         <p id="scene-error" role="status" hidden>3D unavailable. The static specimen remains visible.</p>
       </div>
-      <div class="opening-foot"><span>A proposed architecture. Not a performance claim.</span><a href="#anatomy">Inspect the anatomy ↘</a></div>
+      <div class="opening-foot"><span>First runnable slice. No comparative speed claim.</span><a href="#start">Run Sanborn ↘</a></div>
     </section>
     <div class="manual">
       <aside class="contents">
@@ -44,30 +45,54 @@
           <span class="contents-title">INSIDE SANBORN</span>
           <nav aria-label="Chapters">
             <a href="#principle" aria-current="location">The principle</a>
+            <a href="#start">Install &amp; initialize</a>
             <a href="#anatomy">The anatomy</a>
             <a href="#laya">Laya decisions</a>
+            <a href="#execution">Plans &amp; tools</a>
+            <a href="#terminal">Terminal feedback</a>
             <a href="#inference">Inference boundaries</a>
             <a href="#proof">The proof</a>
+            <a href="#next">What comes next</a>
           </nav>
           <p>A design in the open.<br><em>Built to be questioned.</em></p>
-          <a class="source-link" href="https://github.com/karluiz/sanborn-lamding/tree/karluiz-geometric-frog/harness">Read the Rust scaffold ↗</a>
+          <a class="source-link" href="https://github.com/karluiz/sanborn-lamding/tree/karluiz-geometric-frog/harness">Read the Rust harness ↗</a>
         </div>
       </aside>
       <div class="chapters">
         <section id="principle" class="chapter">
           <h2>Speed is what<br>you <em>don’t do.</em></h2>
           <p class="lead">The expensive part isn’t always running the tool.<br>It’s asking what to do next. Again.</p>
-          <div class="two-columns"><p>Sanborn’s proposed fast path keeps predictable work in Rust: permissions, scheduling independent reads, and executing steps in an explicit plan. Reasoning stays with the model when the evidence actually changes.</p><p>Laya adds a typed question at the boundary. Not another paragraph. Not an agent with unchecked authority. A bounded recommendation—or an explicit absence.</p></div>
+          <div class="two-columns"><p>Sanborn is Laya plus the Rust harness—not a harness with an optional decision plugin. Its first runnable path keeps predictable work in Rust: permissions, scheduling independent reads, and executing explicit plans. The model produces plans, replans when needed, and returns for final verification.</p><p>Laya asks a typed question at each scheduling and evidence boundary and returns a bounded recommendation or explicit absence. It never grants execution authority. The current evaluator uses local evidence guards; a learned backend remains future work.</p></div>
           <div class="turns">
             <div><span>Conventional loop</span><p>Reason <b>→</b> Read <b>→</b> Reason <b>→</b> Read <b>→</b> Reason</p></div>
-            <div><span>Proposed short path</span><p>Reason <b>→</b> <strong>Execute a bounded plan</strong> <b>→</b> Reason when needed</p></div>
+            <div><span>Sanborn’s planned path</span><p>Reason <b>→</b> <strong>Laya + Rust execute a bounded plan</strong> <b>→</b> Verify with reasoning</p></div>
             <small>Conceptual paths, not measured results. Fewer calls only help if the task still succeeds.</small>
           </div>
+        </section>
+        <section id="start" class="chapter">
+          <h2>Initialize<br><em>Rust + Laya.</em></h2>
+          <p class="lead"><code>sb init</code> prepares the harness and Laya together.<br><code>sb -p</code> gives them work.</p>
+          <p>The first CLI is a Rust binary named <code>sb</code>. It needs Rust 1.88+ to install, an Azure deployment compatible with Chat Completions and function calling, and a credential provisioned through your environment or system keyring. Begin in a disposable workspace approved for that inference endpoint.</p>
+          <figure class="command-block"><figcaption>FROM THE REPOSITORY ROOT · AFTER PROVISIONING YOUR CREDENTIAL</figcaption><pre><code class="language-bash">cargo install --path harness/crates/sanborn-cli --locked
+sb init --endpoint https://your-resource.cognitiveservices.azure.com/ \
+  --deployment your-deployment
+sb init --check-inference
+
+sb -p "List the visible files and summarize the README" \
+  -w /path/to/approved-workspace</code></pre></figure>
+          <p>Init validates inference settings, confirms credential availability, and checks Laya’s Continue, Replan and Absent outcomes locally. It reads no workspace files. Networking is opt-in: <code>--check-inference</code> sends one synthetic chat probe. That confirms basic connectivity—not every tool or model capability.</p>
+          <details><summary>Where setup lives—and what it never stores</summary>
+            <p>Configuration is JSON at <code>$XDG_CONFIG_HOME/sanborn/config.local</code>, or <code>~/.config/sanborn/config.local</code> when XDG is unset. On Unix the file is mode 0600. It stores the version, inference endpoint, deployment, API version and required Laya backend—not the API key. No workspace configuration file is created.</p>
+            <p>The key comes from <code>AZURE_OPENAI_API_KEY</code> or a Secret Service entry with <code>application=sanborn</code> and <code>service=azure-inference</code>. Linux keyring access uses <code>secret-tool</code>; environment configuration supports other platforms. Provision secrets through your secret manager, not CLI arguments, repository files or shell history.</p>
+            <p>For reasoning settings, precedence is CLI flags, Azure environment variables, saved configuration, then the endpoint keyring entry and deployment/API defaults. The defaults are <code>gpt-5.4-mini</code> and <code>2024-10-21</code>; compatible deployments must be verified individually.</p>
+            <p>Repeated unchanged init is idempotent. Changing settings requires <code>sb init --force</code>; supply explicit settings because force rebuilds them from flags, environment/keyring and defaults. Failed checks leave configuration unsaved. Unsupported versions or Laya backends fail explicitly.</p>
+          </details>
+          <p>Existing environment/keyring-only runs still work before init. Laya remains required either way. Future model downloads, embedding or learned-backend prerequisites belong under <code>sb init</code> when implemented; none are performed by this first slice.</p>
         </section>
         <section id="anatomy" class="chapter">
           <h2>One core.<br><em>Two instincts.</em></h2>
           <p class="lead">Execute what’s known. Reason about what isn’t.</p>
-          <div class="map-heading"><span>EXPLORE THE PROPOSED SYSTEM</span><span class="stamp">PROPOSAL / NOT IMPLEMENTED</span></div>
+          <div class="map-heading"><span>EXPLORE THE SYSTEM</span><span class="stamp">RUNNABLE CORE / BROADER DESIGN</span></div>
           <div class="routes" role="group" aria-label="Architecture routes">
             <button data-route="all" aria-pressed="true" type="button">Full anatomy</button>
             <button data-route="fast" aria-pressed="false" type="button">Fast path</button>
@@ -96,11 +121,11 @@
             <button class="node" data-node="client" style="--x:0;--y:6.67" aria-pressed="false" type="button"><span>ENTRANCE</span><strong>CLI / client</strong><small>The objective arrives.</small></button>
             <button class="node" data-node="runtime" style="--x:39;--y:6.67" aria-pressed="true" type="button"><span>THE CORE</span><strong>Rust runtime</strong><small>State. Budgets. Control.</small></button>
             <button class="node" data-node="policy" style="--x:76;--y:6.67" aria-pressed="false" type="button"><span>NON-NEGOTIABLE</span><strong>Permission gate</strong><small>Every step. Every time.</small></button>
-            <button class="node" data-node="laya" style="--x:0;--y:45" aria-pressed="false" type="button"><span>OPTIONAL INSTINCT</span><strong>Laya</strong><small>A decision. Not authority.</small></button>
+            <button class="node" data-node="laya" style="--x:0;--y:45" aria-pressed="false" type="button"><span>CORE INSTINCT</span><strong>Laya</strong><small>A decision. Not authority.</small></button>
             <button class="node" data-node="state" style="--x:39;--y:45" aria-pressed="false" type="button"><span>THE MEMORY</span><strong>Results &amp; state</strong><small>Evidence, not assumptions.</small></button>
             <button class="node" data-node="scheduler" style="--x:76;--y:45" aria-pressed="false" type="button"><span>THE MUSCLE</span><strong>Tool scheduler</strong><small>Independent reads in parallel.</small></button>
             <button class="node" data-node="reasoning" style="--x:39;--y:81.67" aria-pressed="false" type="button"><span>ON DEMAND</span><strong>Reasoning adapter</strong><small>When the plan must change.</small></button>
-            <button class="node" data-node="servers" style="--x:76;--y:81.67" aria-pressed="false" type="button"><span>APPROVED BOUNDARY</span><strong>Inference servers</strong><small>Foundry endpoints to verify.</small></button>
+            <button class="node" data-node="servers" style="--x:76;--y:81.67" aria-pressed="false" type="button"><span>APPROVED BOUNDARY</span><strong>Inference servers</strong><small>Azure chat adapter.</small></button>
           </div>
           <div class="inspector" aria-live="polite" aria-atomic="true"><span class="inspector-symbol" aria-hidden="true">↗</span><div><h3 id="node-title">Rust runtime</h3><p id="node-copy">Owns state, budgets and cancellation. Continues validated plan steps locally; asks for reasoning when the evidence or plan no longer holds.</p><p class="constraint" id="node-limit">Boundary: completing a plan is not proof of task success.</p></div></div>
           <p class="map-note">The map above is a guided adaptation of the proposal, not current runtime wiring.<br><a href="./architecture.html">Open the complete Archify diagram ↗</a> · <a href="./architecture.json" download>Download the diagram specification</a></p>
@@ -111,41 +136,114 @@
             <dt>Rust runtime</dt><dd>Owns run state, cancellation and budgets. Executes only valid planned transitions.</dd>
             <dt>Permission gate</dt><dd>Checks every ready step. Laya advice never overrides it.</dd>
             <dt>Tool scheduler</dt><dd>Bounds parallel independent reads and orders mutations according to dependencies.</dd>
-            <dt>Results &amp; state</dt><dd>Records errors and evidence. Invalidates affected reads after edits and conservatively after shell execution.</dd>
+            <dt>Results &amp; state</dt><dd>Records errors and evidence. Invalidation-aware caching is proposed; no cache or shell tool exists yet.</dd>
             <dt>Laya</dt><dd>Returns typed Continue, Replan or Absent. Unavailable or uncertain advice falls back to normal reasoning.</dd>
-            <dt>Reasoning adapter</dt><dd>Handles missing plans, ambiguity and changed evidence. Validates model-produced plans before execution.</dd>
-            <dt>Inference servers</dt><dd>Verified providers for reasoning or decisions, with explicit host and data-egress approvals.</dd>
+            <dt>Reasoning adapter</dt><dd>Azure produces plans, handles unexpected evidence and supplies the final answer. Rust—not the model—validates the plan.</dd>
+            <dt>Inference servers</dt><dd>Azure Chat Completions is wired for reasoning. Other protocols and decision backends need individual verification and data-egress approval.</dd>
           </dl></details>
-          <details><summary>What exists today—and what does not</summary><p><strong>Scaffolded:</strong> the core model/tool loop, provider and tool traits, policy checks, parallel consecutive read batches and ordered mutations.</p><p><strong>Proposed:</strong> bounded plans, Laya routing, cache invalidation, Foundry adapters, acceptance checking and a complete runnable CLI. The workspace is incomplete and has not been validated as a working harness.</p><p>The current path checks and policy flags are not an operating-system sandbox. Untrusted command execution needs separate isolation.</p></details>
+          <details><summary>What exists today—and what does not</summary><p><strong>First runnable slice:</strong> <code>sb -p</code>, Azure reasoning, bounded plans, a required local Laya evaluator, parallel independent reads, ordered guarded writes, run limits and metadata events. A synthetic fixture exercises four tools with two reasoning calls.</p><p><strong>Still proposed:</strong> learned decision inference and embedding, calibrated confidence, cache invalidation, streaming, independent acceptance certification and shell isolation. Laya currently uses exact local evidence guards—not a learned classifier or proven speed advantage.</p><p>The current path checks and policy flags are not an operating-system sandbox. Untrusted command execution needs separate isolation.</p></details>
         </section>
         <section id="laya" class="chapter">
           <h2>An instinct.<br><em>Not a second brain.</em></h2>
           <p class="lead">Ask a typed question. Get a bounded answer.<br>Or no answer at all.</p>
-          <div class="two-columns decision-columns"><div><p>Laya is a decision contract, not a confirmed installed model. A backend recommends whether new evidence needs reasoning. Rust still validates plan preconditions and permissions.</p><p>Start in shadow mode: record what Laya would choose while the normal loop stays in charge. Calibrate thresholds on labeled fixtures, not marketing probabilities.</p></div><figure><figcaption>PROPOSED CONTRACT · ILLUSTRATIVE RUST</figcaption><pre><code>enum Decision {
-    ContinuePlannedStep,
-    Replan,
+          <div class="two-columns decision-columns"><div><p>Laya is a core decision layer, not an optional add-on. Its first pure-Rust evaluator checks local evidence guards. A learned backend and its embedding will be defined separately; Rust still enforces plan preconditions and permissions.</p><p>Every planned step records scheduling and evidence decisions. Compare future learned decisions in shadow mode before enabling them; calibrate thresholds on labeled fixtures, not marketing probabilities.</p>          </div><figure><figcaption>TYPED CONTRACT · SIMPLIFIED RUST</figcaption><pre><code class="language-rust">enum Decision {
+    ContinuePlannedStep { step_id: String },
+    Replan { reason: String },
     Absent { reason: String },
 }
 
 // Advice never grants permission.
-if plan.preconditions_hold()
+if laya.recommends_this_step()
+    &amp;&amp; plan.preconditions_hold()
     &amp;&amp; policy.permits(step) {
     scheduler.execute(step).await?;
 }</code></pre></figure></div>
-          <div class="outcomes"><article><span aria-hidden="true">↗</span><h3>Continue</h3><p>Only an explicit existing step. Preconditions hold. Permissions still apply.</p></article><article><span aria-hidden="true">↺</span><h3>Replan</h3><p>Unexpected evidence, failed checks or ambiguity. Reason when it matters.</p></article><article><span aria-hidden="true">—</span><h3>Absent</h3><p>No backend, timeout, malformed answer or insufficient confidence. Record why; use the normal loop.</p></article></div>
+          <div class="outcomes"><article><span aria-hidden="true">↗</span><h3>Continue</h3><p>Only an explicit existing step. Dependencies and evidence hold. Permissions still apply.</p></article><article><span aria-hidden="true">↺</span><h3>Replan</h3><p>A tool failed, a guard did not match, or a dependency is unsatisfied. Return results to reasoning.</p></article><article><span aria-hidden="true">—</span><h3>Absent</h3><p>Insufficient evidence, such as truncated text. Record why and interrupt the plan—not bypass Laya.</p></article></div>
+          <p><code>sanborn-laya</code> is a pure module: typed decisions, an engine interface and evidence guards. No HTTP transport or key storage belongs inside it. The current <code>LocalLaya</code> engine evaluates <code>tool_succeeded</code>, <code>text_equals</code> and <code>text_contains</code>. It reports no learned probability or calibrated confidence.</p>
+          <p>Rust checks evidence independently even when a decision engine recommends continuation. A faulty recommendation cannot satisfy a failed guard, authorize a denied tool or invent a step. Learned semantic decisions and their embedding will be evaluated separately before entering the normal path.</p>
+        </section>
+        <section id="execution" class="chapter">
+          <h2>Execute a<br><em>guarded plan.</em></h2>
+          <p class="lead">Validate the whole plan.<br>Authorize every step.</p>
+          <p>Azure submits one <code>submit_plan</code> call per reasoning turn. A plan contains up to 16 ordered steps: an ID, a registered tool, fixed JSON input, earlier dependencies and an evidence guard. Inputs cannot interpolate future tool outputs. If an edit needs unknown contents, inspect first, then request a new plan.</p>
+          <figure class="command-block"><figcaption>ILLUSTRATIVE STEP · EXACT EVIDENCE, NOT TASK CERTIFICATION</figcaption><pre><code class="language-json">{
+  "id": "verify",
+  "tool": "read_file",
+  "input": { "path": "greeting.txt" },
+  "depends_on": ["write"],
+  "guard": { "kind": "text_equals", "value": "hello\n" }
+}</code></pre></figure>
+          <p>The scheduler batches consecutive independent reads with a ceiling of eight. Mutations remain ordered and serialized. A dependency becomes satisfied only after valid evidence and a matching Laya decision. On Replan or Absent, executed results and the interruption reason return to reasoning; remaining steps do not run.</p>
+          <div class="table-scroll"><table><caption>Implemented workspace tools · read-only by default</caption><thead><tr><th scope="col">Tool</th><th scope="col">What it does</th><th scope="col">Boundary</th></tr></thead><tbody>
+            <tr><th scope="row"><code>read_file</code></th><td>Read UTF-8 text</td><td>Regular files; at most 128,000 bytes</td></tr>
+            <tr><th scope="row"><code>list_files</code></th><td>List visible, non-ignored entries</td><td>At most 2,000 entries, depth 20; symlinks not followed</td></tr>
+            <tr><th scope="row"><code>search_files</code></th><td>Search a Rust regex</td><td>Bounded traversal and 4 MB scan budget; binary, oversized and limited results reported</td></tr>
+            <tr><th scope="row"><code>write_file</code></th><td>Atomic create or guarded replacement</td><td><code>--allow-write</code>; existing parent; at most 128,000 bytes</td></tr>
+          </tbody></table></div>
+          <p>Creation requires <code>expected_content: null</code>. Replacement requires the exact current contents and preserves existing permissions. Stale contents produce an explicit failure rather than overwriting blindly. There is no shell, delete or arbitrary command tool.</p>
+          <details><summary>Run budgets, cancellation and filesystem limits</summary>
+            <p>Defaults: 12 reasoning turns, 64 tool calls, 4,096 output tokens per model call, 60 seconds per inference request, 10 seconds per read tool and a 180-second execution deadline. Use <code>--max-turns</code>, <code>--max-tool-calls</code>, <code>--max-tokens</code> and <code>--timeout</code> to adjust bounded limits.</p>
+            <p>Ctrl+C cancels the run; completed writes are not rolled back. Blocking filesystem work can finish after cancellation. Writes are not individually timed out and replanned while their worker still runs. These are cooperative limits, not hard OS-level deadlines.</p>
+            <p>File tools reject workspace escapes, external or dangling symlinks and common credential-like paths. Hidden and ignored files are omitted from traversal. These are path and policy checks—not comprehensive secret detection, race-proof filesystem isolation or a sandbox for hostile tasks.</p>
+          </details>
+          <p>A completed plan is not a completed task. Reasoning returns to inspect results and request verification before its final answer. Exit zero means a final answer was returned without a runtime error; an external acceptance check must still establish correctness.</p>
+        </section>
+        <section id="terminal" class="chapter">
+          <h2>Feedback for<br><em>terminal people.</em></h2>
+          <p class="lead">Color where it helps. Feedback while you wait.<br>No decorative inference calls.</p>
+          <figure class="terminal-example"><figcaption>ILLUSTRATIVE TERMINAL TRANSCRIPT · SPINNER FRAME IS STATIC HERE</figcaption><pre><code><span class="term-progress">/ Reasoning - turn 1 [0.5s]</span>
+<span class="term-plan">&gt; Laya plan: 4 steps</span>
+<span class="term-ok">+ read_file [read_a]: ok</span>
+<span class="term-ok">+ read_file [read_b]: ok</span>
+<span class="term-ok">+ write_file [write_result]: ok</span>
+<span class="term-ok">+ read_file [verify_result]: ok</span>
+<span class="term-progress">| Reasoning - turn 2 [2.0s]</span>
+<span class="term-ok">+ Finished: 2 reasoning turns, 4 tools, ...</span>
+Verified result: sanborn-ready</code></pre></figure>
+          <p>Interactive stderr uses Crayon-inspired green/cyan markers and an ASCII <code>| / - \</code> spinner with elapsed time. Waiting animation ticks eight times per second; events update immediately. The renderer uses the existing async runtime: no new thread, dependency, model request or artificial delay. It does not change Laya’s decisions.</p>
+          <figure class="command-block"><figcaption>CHOOSE THE FEEDBACK, KEEP THE SAME EXECUTION</figcaption><pre><code class="language-bash">sb -p "your task"
+sb --plain -p "your task"
+NO_COLOR=1 sb -p "your task"
+sb -p "your task" --json-events</code></pre></figure>
+          <p><code>--plain</code> disables color and animation. <code>NO_COLOR</code>, even empty, disables colors but retains the interactive spinner. Pipes, <code>TERM=dumb</code> and JSON event mode disable both automatically. Active lines clear on completion, errors, deadlines and Ctrl+C; no alternate screen or hidden cursor is used.</p>
+          <p>Stdout contains the final answer or init result. Stderr contains progress or metadata-only JSON events: reasoning starts, accepted plans, Laya decisions, tool outcomes, durations and token usage. File contents and tool inputs are not logged in those events; the final model answer can still quote them.</p>
         </section>
         <section id="inference" class="chapter">
           <h2>The model can live elsewhere.<br><em>Control can’t.</em></h2>
-          <p class="lead">Foundry servers are potential inference backends.<br>Not permission to send everything everywhere.</p>
-          <ol class="boundaries"><li><h3>Verify the endpoint</h3><p>Identify the server, model, protocol, authentication and structured-output support. “Foundry” alone does not establish compatibility.</p></li><li><h3>Approve the data boundary</h3><p>Start with synthetic fixtures. Work code and Qhipa wiki bodies must not leave the machine without recorded egress approval.</p></li><li><h3>Separate decisions from reasoning</h3><p>Use distinct provider contracts. A model may serve both, but a decision call must save more time than it adds.</p></li><li><h3>Make failure visible</h3><p>Bound retries and timeouts. Record fallback reasons. Keep keys outside source and sensitive payloads out of traces.</p></li></ol>
+          <p class="lead">Azure reasoning is connected.<br>That isn’t permission to send everything everywhere.</p>
+          <ol class="boundaries"><li><h3>Verify the endpoint</h3><p>The Azure adapter translates core messages, function calls, tool results, finish reasons and token usage to Chat Completions. HTTPS is required and redirects are disabled. Different deployments and provider protocols need their own compatibility checks.</p></li><li><h3>Approve the data boundary</h3><p>The prompt, tool schemas and selected tool results leave the machine. Start with synthetic fixtures; use only workspaces approved for the configured host. Personal infrastructure addresses, credentials and work data do not belong in public documentation.</p></li><li><h3>Separate decisions from reasoning</h3><p>The current Laya evaluator stays local. A future learned backend must preserve the typed contract and explicit absence behavior. A decision call must save more time than it adds without sacrificing acceptance success.</p></li><li><h3>Make failure visible</h3><p>Inference has bounded connection/request timeouts and response size. Malformed completions, refusals, inconsistent tool calls and HTTP failures are explicit errors. HTTP response bodies are not logged because they can echo inputs; automatic retries are not implemented.</p></li></ol>
         </section>
         <section id="proof" class="chapter">
           <h2>Don’t count turns.<br><em>Count finished work.</em></h2>
           <p class="lead">The fastest wrong answer is still the wrong answer.</p>
           <p>Use identical tasks, acceptance checks and reasoning models in isolated workspaces. Separate cold and warm runs. Compare the mechanism—not different hardware or an easier task.</p>
-          <div class="table-scroll"><table><caption>Proposed experiment · no results yet</caption><thead><tr><th scope="col">Configuration</th><th scope="col">What changes</th><th scope="col">What it reveals</th></tr></thead><tbody><tr><th scope="row">A · Baseline</th><td>Conventional model/tool loop</td><td>Starting cost of correct work</td></tr><tr><th scope="row">B · Rust plans</th><td>Bounded plans and scheduling</td><td>Gains without extra inference</td></tr><tr><th scope="row">C · Plans + Laya</th><td>Typed decisions, shadow mode first</td><td>Whether routing earns its overhead</td></tr></tbody></table></div>
+          <div class="table-scroll"><table><caption>Proposed experiment · no comparative results yet</caption><thead><tr><th scope="col">Configuration</th><th scope="col">What changes</th><th scope="col">What it reveals</th></tr></thead><tbody><tr><th scope="row">A · Baseline</th><td>Conventional model/tool loop</td><td>Starting cost of correct work</td></tr><tr><th scope="row">B · Rust plans</th><td>Bounded plans and scheduling</td><td>Gains without extra inference</td></tr><tr><th scope="row">C · Plans + Laya</th><td>Core typed decisions; future learned backend measured separately</td><td>Whether routing earns its overhead</td></tr></tbody></table></div>
           <dl class="metrics"><div><dt>Correctness</dt><dd>Acceptance checks and success rate</dd></div><div><dt>Time to done</dt><dd>Median / p95, cold and warm</dd></div><div><dt>Decision overhead</dt><dd>Latency, calls, tokens and retries</dd></div></dl>
-          <p class="honesty"><strong>No benchmark results yet.</strong> “Fastest” is the ambition. These experiments must establish the evidence.</p>
+          <details open><summary>What we have actually observed</summary>
+            <p><strong>End-to-end mechanism:</strong> an opt-in synthetic Azure fixture reads two files independently, writes an exact result, then reads it back through a dependency and text-equality guard. Acceptance checks assert the exact contents, four tool executions, eight Laya decisions and two reasoning calls. That shows plan execution without a reasoning call between every step—not a comparative speedup.</p>
+            <p><strong>Terminal overhead:</strong> release-mode measurements observed about 0.18 µs per styled frame formatted to a sink, and 0.8 µs per frame written to a drained pseudo-terminal. Those are renderer microbenchmarks on one local setup, not screen-rendering, SSH or harness latency guarantees. Slow terminals can still add cost; <code>--plain</code> removes animation.</p>
+            <p><strong>Failure coverage:</strong> offline tests exercise Azure wire translation and mocked HTTP, init persistence and failure behavior, Laya absence, faulty-engine guard rejection, dependencies, policy denial, read concurrency, serialized mutations, budgets, read timeouts, protected paths and guarded writes. Terminal checks cover pipes, JSON, no-color and cleanup.</p>
+          </details>
+          <figure class="command-block"><figcaption>REPRODUCE THE CHECKS · LIVE INFERENCE IS EXPLICITLY OPT-IN</figcaption><pre><code class="language-bash">cargo test --manifest-path harness/Cargo.toml --workspace --locked
+cargo clippy --manifest-path harness/Cargo.toml \
+  --workspace --all-targets --locked -- -D warnings
+
+# Sends only synthetic fixtures to your configured Azure endpoint
+cargo test --manifest-path harness/Cargo.toml -p sanborn-cli \
+  --test azure_smoke -- --ignored</code></pre></figure>
+          <p class="honesty"><strong>No comparative speed benchmark yet.</strong> “Fastest” remains the ambition. Correct-result latency and acceptance success must establish the evidence.</p>
+        </section>
+        <section id="next" class="chapter">
+          <h2>The implementation<br><em>roadmap.</em></h2>
+          <p class="lead">The first runnable slice is real.<br>The bigger proposal stays visible.</p>
+          <dl class="reference">
+            <dt>Implemented</dt><dd><code>sb init</code>, <code>sb -p</code>, private user configuration, environment/keyring credentials, Azure chat reasoning, bounded plans, required local Laya, guarded file tools, terminal feedback and metadata traces.</dd>
+            <dt>Next evidence</dt><dd>Labeled decision fixtures and a comparison runner: expected results, failures, changed files and insufficient or misleading evidence. Measure acceptance success, total latency and decision overhead on identical tasks.</dd>
+            <dt>Learned Laya</dt><dd>Backend choice, embedding, semantic inference and confidence calibration remain undecided. Setup prerequisites will live under <code>sb init</code>. Future learned decisions need shadow evaluation before affecting the normal path.</dd>
+            <dt>Broader coding capability</dt><dd>Targeted edits, isolated commands and test-running tools are future work. The current CLI is a file-task harness, not yet a complete coding agent.</dd>
+            <dt>Runtime extensions</dt><dd>Invalidation-aware caching, streaming, context compaction, durable recovery and independent acceptance certification remain unimplemented.</dd>
+          </dl>
+          <p>These pages describe the local implementation and remaining design, not a release guarantee. Source-backed details and installation notes live in <a class="text-link" href="https://github.com/karluiz/sanborn-lamding/blob/karluiz-geometric-frog/harness/README.md">the harness README ↗</a>. Repository links reflect only what has been pushed.</p>
           <div class="closing"><p>Think when it matters.<br><em>Leap when it doesn’t.</em></p><a href="#anatomy">Back to the anatomy ↑</a></div>
         </section>
       </div>

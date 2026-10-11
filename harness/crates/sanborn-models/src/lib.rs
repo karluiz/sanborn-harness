@@ -1,5 +1,5 @@
 //! Model providers for Sanborn.
 
-pub mod anthropic;
+pub mod azure;
 
-pub use anthropic::AnthropicProvider;
+pub use azure::AzureProvider;
