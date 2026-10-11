@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#eaece3" />
+    <meta name="description" content="Meet Sanborn, the fastest harness on the market. A Fredycorp Company." />
+    <title>Sanborn — The fastest harness on the market</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='14' fill='%23eaece3'/%3E%3Cpath d='M8 23 13 9l10 6h2l10-6 5 14-6 15H14Z' fill='%235c7951'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./src/style.css" />
+    <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js" } }</script>
+  </head>
+  <body>
+    <div id="app">
+      <header class="site-header">
+        <a class="wordmark" href="./" aria-label="Sanborn home"><svg viewBox="0 0 36 30" aria-hidden="true"><path d="M4 13 8 3l9 5h2l9-5 4 10-5 12H9Z"/><circle cx="12" cy="12" r="2"/><circle cx="24" cy="12" r="2"/><path d="M12 19q6 5 12 0"/></svg>sanborn<span class="wordmark-dot">.</span></a>
+        <span class="header-note">THE FASTEST HARNESS ON THE MARKET</span>
+        <button class="about-link" id="about-open">About Sanborn <span aria-hidden="true">↗</span></button>
+      </header>
+
+      <main>
+        <section class="experience" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <div class="eyebrow"><span class="status-dot"></span> MEET SANBORN</div>
+            <h1 id="hero-title">The fastest harness<br />on the <em>market.</em></h1>
+            <p>Small frog. Serious speed.<br />Sanborn leaps from task to done before you blink.</p>
+          </div>
+
+          <div class="scene-wrap">
+            <canvas id="frog-scene" tabindex="0" aria-label="Interactive 3D geometric frog, Sanborn's mascot, on a lily pad. Drag or use left and right arrow keys to rotate."></canvas>
+            <div id="scene-error" class="scene-error" role="alert" hidden>The 3D scene couldn’t load. Please enable WebGL in your browser and reload to meet Sanborn.</div>
+            <div class="scene-name"><span>01 / SANBORN</span><span class="name-rule"></span><span>BUILT TO LEAP</span></div>
+            <div class="drag-hint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8 3 12l4 4m10-8 4 4-4 4M3 12h18"/></svg>Drag to spin Sanborn</div>
+            <div class="frog-label"><span class="label-line"></span><span>Built for speed.<br /><strong>Zero wasted motion.</strong></span></div>
+          </div>
+
+          <div class="scene-bottom">
+            <div class="caption"><span class="caption-number">001</span><div><strong>Not your ordinary harness.</strong><span>Lightweight by design. Fast by nature.</span></div></div>
+            <div class="controls" aria-label="Scene controls">
+              <div class="color-controls" role="group" aria-label="Frog color">
+                <button class="color-swatch active" data-color="green" aria-label="Fern green" aria-pressed="true" style="--swatch:#5c7951"></button>
+                <button class="color-swatch" data-color="clay" aria-label="Terracotta" aria-pressed="false" style="--swatch:#bf876b"></button>
+                <button class="color-swatch" data-color="blue" aria-label="River blue" aria-pressed="false" style="--swatch:#7d98a4"></button>
+              </div>
+              <span class="control-divider"></span>
+              <button id="motion-toggle" class="icon-button" aria-label="Pause animation" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg></button>
+              <button id="reset-view" class="icon-button" aria-label="Reset frog view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8a8 8 0 1 1-1 7M5 3v5h5"/></svg></button>
+              <button id="hop-button" class="hop-button">Watch it leap <span aria-hidden="true">↗</span></button>
+            </div>
+          </div>
+        </section>
+
+        <div class="bottom-note"><span class="sparkle" aria-hidden="true">✳</span> Less waiting. More shipping.</div>
+      </main>
+
+      <footer class="site-footer"><span>SANBORN</span><span class="company">a <strong>Fredycorp</strong> Company</span><span>THE FASTEST HARNESS ON THE MARKET</span></footer>
+    </div>
+
+    <dialog id="about-dialog" aria-labelledby="about-title">
+      <button id="about-close" class="dialog-close" aria-label="Close about">×</button>
+      <div class="eyebrow">MEET SANBORN</div>
+      <h2 id="about-title">Small frog.<br /><em>Serious speed.</em></h2>
+      <p>Sanborn is the fastest harness on the market. Lean, light, and always ready to leap.</p>
+      <p>Drag to spin the frog, try a new color, or hit “Watch it leap” to see Sanborn in motion.</p>
+      <span class="dialog-credit">a <strong>Fredycorp</strong> Company</span>
+    </dialog>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
