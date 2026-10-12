@@ -62,6 +62,12 @@ code[class*="language-"]{color:#d9e4cc;white-space:pre;tab-size:2}
 .tadpole-pond.loaded .pond-fallback{display:none}
 .pond-parent{position:absolute;right:10%;top:14%;font-size:11px;letter-spacing:1px;color:var(--fern);text-align:right;pointer-events:none}
 .pond-parent>span{display:block;margin-top:8px;font-size:11px;letter-spacing:0;color:#c1ceae}
+.pond-croar{position:absolute;right:22%;top:24%;display:grid;gap:4px;text-align:center;color:#f3e5a7;opacity:0;pointer-events:none;text-shadow:0 2px 12px #07120b}
+.pond-croar strong{font-family:Manrope,sans-serif;font-size:clamp(16px,2vw,27px);letter-spacing:.12em}
+.pond-croar small{font-size:10px;letter-spacing:.05em;color:#d9e4cc}
+.pond-croar.is-visible{animation:croar-arrival 1.7s cubic-bezier(.16,.8,.25,1) both}
+@keyframes croar-arrival{0%{opacity:0;transform:translateY(12px) scale(.72)}18%{opacity:1;transform:translateY(-3px) scale(1.12)}34%{transform:translateY(0) scale(1)}78%{opacity:1}100%{opacity:0;transform:translateY(-9px) scale(.96)}}
+.visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 #pond-payload{position:absolute;left:22px;bottom:20px;font-size:12px;color:#e3c392;pointer-events:none}
 .tadpole-pond[data-payload="results"] #pond-payload,.tadpole-pond[data-payload="mixed"] #pond-payload{color:#8fd2c3}
 #pond-error{position:absolute;bottom:0;left:22px;right:22px;font-size:12px;color:#e3c392;background:var(--ink);padding:10px}
@@ -74,6 +80,7 @@ code[class*="language-"]{color:#d9e4cc;white-space:pre;tab-size:2}
 .pond-controls button:first-child{background:var(--fern);border-color:var(--fern);color:var(--ink)}
 .pond-controls button:hover{border-color:#eaece3;background:#35452c}
 .pond-controls button:first-child:hover{background:#d1e1ae;color:var(--ink)}
+.pond-controls button[aria-pressed="true"]{border-color:#e3c392;color:#e3c392}
 .pond-key{display:flex;flex-wrap:wrap;gap:22px;list-style:none;margin:0;padding:18px 22px;border-top:1px solid #ffffff26;font-size:12px}
 .pond-key li{display:flex;align-items:center;gap:8px}
 .pond-key li>span:last-child{color:#c1ceae;font-size:11px}
@@ -85,3 +92,5 @@ code[class*="language-"]{color:#d9e4cc;white-space:pre;tab-size:2}
 .tadpole-lifecycle p{margin:0;font-size:14px;color:var(--muted);max-width:65ch}
 @media(max-width:1100px){.pond-controls{align-items:flex-start;flex-direction:column}.pond-key{gap:14px}.pond-key li{flex-basis:100%}}
 @media(max-width:760px){.tadpole-pond{aspect-ratio:1.2/1}.pond-parent{right:7%;top:8%;font-size:10px}.pond-parent>span{font-size:10px}.pond-controls{padding:18px;gap:16px}.pond-controls>div{width:100%;flex-shrink:1}.pond-controls button{flex:1;padding:12px 8px}.pond-key{padding:16px 18px}.tadpole-lifecycle article{grid-template-columns:1fr;gap:10px}}
+@media(max-width:760px){.pond-croar{right:18%;top:19%}.pond-croar small{font-size:9px}}
+@media(prefers-reduced-motion:reduce){.pond-croar.is-visible{animation:none;opacity:1}}

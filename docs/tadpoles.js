@@ -7,7 +7,10 @@ export function mount() {
   const canvas = document.querySelector('#tadpole-canvas');
   const motion = document.querySelector('#pond-motion');
   const summon = document.querySelector('#pond-summon');
+  const sound = document.querySelector('#pond-sound');
   const status = document.querySelector('#pond-status');
+  const arrivalStatus = document.querySelector('#pond-arrival');
+  const croarCue = document.querySelector('#pond-croar');
   const payload = document.querySelector('#pond-payload');
   const payloadItems = [...document.querySelectorAll('.pond-key li>span:last-child')];
   const instructions = ['Read the README', 'Inspect the tests', 'Trace workspace paths'];
@@ -48,6 +51,16 @@ export function mount() {
     });
     scene.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), waterMaterial));
   }
+  const arrivalRings = [0xf3e5a7, 0x8fd2c3, 0xbad18f].map(color => {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.2, 0.018, 6, 40),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0 }),
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(2.7, -0.025, 0);
+    scene.add(ring);
+    return ring;
+  });
 
   const bodyGeometry = new THREE.IcosahedronGeometry(1, 2);
   const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x233025, roughness: 0.55 });
@@ -203,6 +216,73 @@ export function mount() {
   let previous = null;
   let frame = 0;
   let currentStage = -1;
+  let audioContext = null;
+  let muted = false;
+  let hasDrawn = false;
+  let lastWorkerStates = [];
+  let lastCroakAt = -Infinity;
+  const ringStartedAt = Array(3).fill(-Infinity);
+  let croarTimer = 0;
+  const audioAvailable = Boolean(window.AudioContext || window.webkitAudioContext);
+  const workerNames = ['README', 'Tests', 'Paths'];
+  function updateSoundControl() {
+    sound.textContent = muted ? 'Croaks off' : 'Croaks on';
+    sound.setAttribute('aria-pressed', String(!muted));
+  }
+  function unlockAudio() {
+    if (!audioAvailable) {
+      arrivalStatus.textContent = 'Audio is not available in this browser; the visual croar cue still plays.';
+      return;
+    }
+    if (!audioContext) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      audioContext = new AudioContextClass();
+    }
+    if (audioContext.state !== 'running' && audioContext.state !== 'closed') {
+      audioContext.resume().catch(() => {
+        muted = true;
+        updateSoundControl();
+        arrivalStatus.textContent = 'Browser audio could not start; use Enable croaks to try again.';
+      });
+    }
+  }
+  function playCroak() {
+    if (muted || !audioContext || audioContext.state !== 'running') return;
+    const now = audioContext.currentTime;
+    const oscillator = audioContext.createOscillator();
+    const filter = audioContext.createBiquadFilter();
+    const volume = audioContext.createGain();
+    oscillator.type = 'sawtooth';
+    oscillator.frequency.setValueAtTime(155, now);
+    oscillator.frequency.exponentialRampToValueAtTime(78, now + 0.24);
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(390, now);
+    filter.frequency.exponentialRampToValueAtTime(210, now + 0.28);
+    filter.Q.value = 3.5;
+    volume.gain.setValueAtTime(0.0001, now);
+    volume.gain.exponentialRampToValueAtTime(0.19, now + 0.025);
+    volume.gain.exponentialRampToValueAtTime(0.075, now + 0.12);
+    volume.gain.exponentialRampToValueAtTime(0.15, now + 0.17);
+    volume.gain.exponentialRampToValueAtTime(0.0001, now + 0.39);
+    oscillator.connect(filter).connect(volume).connect(audioContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.41);
+    oscillator.onended = () => {
+      oscillator.disconnect();
+      filter.disconnect();
+      volume.disconnect();
+    };
+  }
+  function celebrateArrival(index) {
+    lastCroakAt = elapsed;
+    ringStartedAt[index] = elapsed;
+    playCroak();
+    arrivalStatus.textContent = `${workerNames[index]} tadpole arrived. Croar! Sanborn received its illustrative evidence; the parent still verifies.`;
+    croarCue.classList.remove('is-visible');
+    clearTimeout(croarTimer);
+    requestAnimationFrame(() => croarCue.classList.add('is-visible'));
+    croarTimer = window.setTimeout(() => croarCue.classList.remove('is-visible'), 1800);
+  }
   function draw(time) {
     frame = 0;
     if (failed) return;
@@ -229,6 +309,10 @@ export function mount() {
       const docked = cycle >= dockedAt;
       const state = docked ? 'croaked' : returning ? 'returning' : investigating ? 'investigating'
         : cycle < departure ? 'assigned' : 'outbound';
+      if (hasDrawn && state === 'croaked' && lastWorkerStates[index] !== 'croaked') {
+        celebrateArrival(index);
+      }
+      lastWorkerStates[index] = state;
       workerStates.push(state);
       const text = `${state === 'croaked' ? 'Croak received' : state === 'returning' ? 'Returning' :
         state === 'investigating' ? 'Investigating' : state === 'assigned' ? 'Assigned' : 'Dispatched'} · ${
@@ -265,7 +349,21 @@ export function mount() {
       instruction.position.y = 0.63 + exchange * 0.1;
       cargo.position.y = 0.63 + Math.sin(elapsed * 2 + index) * 0.025;
     });
+    hasDrawn = true;
     host.dataset.workers = workerStates.join(',');
+    const croakAge = elapsed - lastCroakAt;
+    const croakMotion = croakAge >= 0 && croakAge < 0.85
+      ? Math.sin(Math.min(croakAge / 0.85, 1) * Math.PI)
+      : 0;
+    frog.position.y = croakMotion * 0.075;
+    frog.scale.setScalar(0.68 * (1 + croakMotion * 0.035));
+    arrivalRings.forEach((ring, index) => {
+      const age = elapsed - ringStartedAt[index];
+      const active = age >= 0 && age < 1.1;
+      const progress = active ? age / 1.1 : 0;
+      ring.scale.setScalar(active ? 0.45 + progress * 3.1 : 0.45);
+      ring.material.opacity = active ? (1 - progress) * 0.56 : 0;
+    });
     renderer.render(scene, camera);
     if (!paused && visible && !document.hidden) frame = requestAnimationFrame(draw);
   }
@@ -283,7 +381,13 @@ export function mount() {
   function replay() {
     elapsed = preference.matches ? 10 : 0;
     paused = preference.matches;
+    if (!muted) unlockAudio();
     controls();
+  }
+  function toggleSound() {
+    muted = !muted;
+    updateSoundControl();
+    if (!muted) unlockAudio();
   }
   function changePreference() { paused = preference.matches; controls(); }
   function contextLost(event) {
@@ -293,13 +397,17 @@ export function mount() {
     host.classList.remove('loaded');
     motion.hidden = true;
     summon.hidden = true;
+    sound.hidden = true;
     document.querySelector('#pond-error').hidden = false;
     console.error('Tadpole pond: WebGL context lost.');
   }
   motion.hidden = false;
   summon.hidden = false;
+  sound.hidden = !audioAvailable;
+  updateSoundControl();
   motion.addEventListener('click', toggle);
   summon.addEventListener('click', replay);
+  sound.addEventListener('click', toggleSound);
   preference.addEventListener('change', changePreference);
   canvas.addEventListener('webglcontextlost', contextLost);
   document.addEventListener('visibilitychange', refresh);
@@ -330,9 +438,12 @@ export function mount() {
     observer.disconnect();
     motion.removeEventListener('click', toggle);
     summon.removeEventListener('click', replay);
+    sound.removeEventListener('click', toggleSound);
     preference.removeEventListener('change', changePreference);
     document.removeEventListener('visibilitychange', refresh);
     canvas.removeEventListener('webglcontextlost', contextLost);
+    clearTimeout(croarTimer);
+    if (audioContext && audioContext.state !== 'closed') void audioContext.close();
     const geometries = new Set();
     const materials = new Set();
     scene.traverse(object => {

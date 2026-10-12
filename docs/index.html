@@ -234,20 +234,22 @@ if laya.recommends_this_step()
               </svg>
               <canvas id="tadpole-canvas" aria-hidden="true"></canvas>
               <span class="pond-parent">SANBORN<span>Parent verifies the croaks.</span></span>
+              <span id="pond-croar" class="pond-croar" aria-hidden="true"><strong>CROAR!</strong><small>Evidence is home</small></span>
               <span id="pond-payload">OUT · Instructions / BACK · Results</span>
               <p id="pond-error" hidden role="status">3D unavailable. The static pond remains visible; reload to try again.</p>
             </div>
             <div class="pond-controls">
               <p id="pond-status"><strong>Evidence comes home.</strong><span>Every worker uses Laya. The parent still verifies.</span></p>
-              <div><button id="pond-summon" type="button" hidden>Summon tadpoles</button><button id="pond-motion" type="button" hidden aria-pressed="false">Pause swimming</button></div>
+              <div><button id="pond-summon" type="button" hidden>Summon tadpoles</button><button id="pond-motion" type="button" hidden aria-pressed="false">Pause swimming</button><button id="pond-sound" type="button" hidden aria-pressed="true">Croaks on</button></div>
             </div>
+            <p id="pond-arrival" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></p>
             <ul class="pond-key" aria-label="Illustrative worker objectives">
               <li><span class="pond-dot pond-readme" aria-hidden="true"></span>README <span>Understand the context</span></li>
               <li><span class="pond-dot pond-tests" aria-hidden="true"></span>Tests <span>Inspect the coverage</span></li>
               <li><span class="pond-dot pond-paths" aria-hidden="true"></span>Paths <span>Trace the boundaries</span></li>
             </ul>
           </figure>
-          <p>In the illustration, warm paper scrolls carry Sanborn’s instructions out to the workers. Mint result packets bring their reports and evidence back. Each tadpole departs, investigates and returns on its own schedule: one croak can arrive while another worker is still investigating. The handoff is illustrative; the packets are not proof that a real task succeeded.</p>
+          <p>In the illustration, warm paper scrolls carry Sanborn’s instructions out to the workers. Mint result packets bring their reports and evidence back. Each tadpole departs, investigates and returns on its own schedule: one croak can arrive while another worker is still investigating. Sanborn answers each arrival with a short frog croak, a buoyant hop, ripples and a “CROAR!” flash. Click Summon to unlock browser audio; use Croaks on/off to control it. The handoff is illustrative; the packets are not proof that a real task succeeded.</p>
           <div class="tadpole-lifecycle">
             <article><h3>Summon</h3><p>One to three independent objectives. Laya gates the parent’s schedule and each worker’s dispatch. Rust owns permissions.</p></article>
             <article><h3>Investigate</h3><p>Every child plan passes Rust validation. Laya evaluates tool scheduling and evidence. Only registered read tools are available.</p></article>
